@@ -1,0 +1,243 @@
+import type { AppSettings, LiveSuggestion } from '../types'
+
+const GROQ_BASE = 'https://api.groq.com/openai/v1'
+
+function authHeaders(apiKey: string): HeadersInit {
+  return {
+    Authorization: `Bearer ${apiKey}`,
+  }
+}
+
+/** Groq validates the upload using filename + bytes; extension must match container (e.g. Safari → mp4, not webm). */
+function extensionForMime(mime: string): string {
+  const m = mime.toLowerCase()
+  if (m.includes('webm')) return 'webm'
+  if (m.includes('mp4') || m.includes('mp4a') || m.includes('m4a') || m.includes('aac'))
+    return 'm4a'
+  if (m.includes('mpeg') || m.includes('mp3')) return 'mp3'
+  if (m.includes('ogg')) return 'ogg'
+  if (m.includes('wav')) return 'wav'
+  if (m.includes('flac')) return 'flac'
+  return 'webm'
+}
+
+function audioFileFromBlob(blob: Blob, mimeHint?: string): File {
+  if (blob instanceof File && blob.name && blob.name !== 'blob') {
+    return blob
+  }
+  const raw =
+    (mimeHint && mimeHint.trim()) ||
+    (blob.type && blob.type.trim()) ||
+    'audio/webm'
+  const baseType = raw.split(';')[0].trim()
+  const ext = extensionForMime(baseType)
+  const name = `chunk.${ext}`
+  return new File([blob], name, {
+    type: baseType || 'application/octet-stream',
+  })
+}
+
+export async function transcribeAudio(
+  apiKey: string,
+  blob: Blob,
+  model: string,
+  mimeHint?: string,
+): Promise<string> {
+  const fd = new FormData()
+  fd.append('file', audioFileFromBlob(blob, mimeHint))
+  fd.append('model', model)
+  fd.append('response_format', 'json')
+
+  const res = await fetch(`${GROQ_BASE}/audio/transcriptions`, {
+    method: 'POST',
+    headers: authHeaders(apiKey),
+    body: fd,
+  })
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Whisper: ${res.status} ${err}`)
+  }
+  const data = (await res.json()) as { text?: string }
+  return (data.text ?? '').trim()
+}
+
+function withIds(
+  items: Omit<LiveSuggestion, 'id'>[],
+): LiveSuggestion[] {
+  return items.map((s) => ({
+    ...s,
+    id: globalThis.crypto.randomUUID(),
+  }))
+}
+
+const KINDS = new Set<LiveSuggestion['kind']>([
+  'question',
+  'talking_point',
+  'answer',
+  'fact_check',
+  'clarify',
+])
+
+function parseSuggestionsPayload(raw: string): Omit<LiveSuggestion, 'id'>[] {
+  const parsed = JSON.parse(raw) as { suggestions?: unknown }
+  const list = parsed.suggestions
+  if (!Array.isArray(list) || list.length !== 3) {
+    throw new Error('Model must return JSON with exactly 3 suggestions.')
+  }
+  return list.map((item, i) => {
+    const o = item as Record<string, unknown>
+    const kind = o.kind
+    const title = o.title
+    const preview = o.preview
+    if (
+      typeof kind !== 'string' ||
+      typeof title !== 'string' ||
+      typeof preview !== 'string'
+    ) {
+      throw new Error(`Invalid suggestion shape at index ${i}.`)
+    }
+    if (!KINDS.has(kind as LiveSuggestion['kind'])) {
+      throw new Error(`Invalid suggestion kind at index ${i}: ${kind}`)
+    }
+    return {
+      kind: kind as LiveSuggestion['kind'],
+      title,
+      preview,
+    }
+  })
+}
+
+export async function fetchLiveSuggestions(
+  settings: AppSettings,
+  transcriptWindow: string,
+  priorSuggestionsJson: string,
+): Promise<LiveSuggestion[]> {
+  const apiKey = settings.groqApiKey.trim()
+  if (!apiKey) throw new Error('Add your Groq API key in Settings.')
+
+  const userContent = [
+    'RECENT TRANSCRIPT:',
+    transcriptWindow || '(empty so far)',
+    '',
+    'PRIOR_SUGGESTIONS_JSON:',
+    priorSuggestionsJson || '[]',
+    '',
+    'Return JSON: {"suggestions":[{"kind":"question|talking_point|answer|fact_check|clarify","title":"...","preview":"..."}, ...]} — exactly 3 items.',
+  ].join('\n')
+
+  const res = await fetch(`${GROQ_BASE}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      ...authHeaders(apiKey),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: settings.llmModel,
+      temperature: settings.suggestionTemperature,
+      max_tokens: 1024,
+      messages: [
+        { role: 'system', content: settings.liveSuggestionPrompt },
+        { role: 'user', content: userContent },
+      ],
+      response_format: { type: 'json_object' },
+    }),
+  })
+
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Suggestions: ${res.status} ${err}`)
+  }
+
+  const data = (await res.json()) as {
+    choices?: { message?: { content?: string } }[]
+  }
+  const raw = data.choices?.[0]?.message?.content
+  if (!raw) throw new Error('No suggestion content from model.')
+
+  return withIds(parseSuggestionsPayload(raw))
+}
+
+export async function fetchExpandedAnswer(
+  settings: AppSettings,
+  suggestion: Pick<LiveSuggestion, 'title' | 'preview' | 'kind'>,
+  transcriptWindow: string,
+): Promise<string> {
+  const apiKey = settings.groqApiKey.trim()
+  if (!apiKey) throw new Error('Add your Groq API key in Settings.')
+
+  const userContent = [
+    'TAPPED SUGGESTION:',
+    JSON.stringify(suggestion, null, 2),
+    '',
+    'TRANSCRIPT (expanded window):',
+    transcriptWindow || '(empty)',
+  ].join('\n')
+
+  const res = await fetch(`${GROQ_BASE}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      ...authHeaders(apiKey),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: settings.llmModel,
+      temperature: settings.chatTemperature,
+      max_tokens: 2048,
+      messages: [
+        { role: 'system', content: settings.expandedAnswerPrompt },
+        { role: 'user', content: userContent },
+      ],
+    }),
+  })
+
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Expanded answer: ${res.status} ${err}`)
+  }
+
+  const data = (await res.json()) as {
+    choices?: { message?: { content?: string } }[]
+  }
+  return (data.choices?.[0]?.message?.content ?? '').trim()
+}
+
+export async function fetchChatReply(
+  settings: AppSettings,
+  transcriptWindow: string,
+  chatMessages: { role: 'user' | 'assistant'; content: string }[],
+): Promise<string> {
+  const apiKey = settings.groqApiKey.trim()
+  if (!apiKey) throw new Error('Add your Groq API key in Settings.')
+
+  const messages = [
+    {
+      role: 'system' as const,
+      content: `${settings.chatPrompt}\n\nTRANSCRIPT (context window):\n${transcriptWindow || '(empty)'}`,
+    },
+    ...chatMessages.map((m) => ({ role: m.role, content: m.content })),
+  ]
+
+  const res = await fetch(`${GROQ_BASE}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      ...authHeaders(apiKey),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: settings.llmModel,
+      temperature: settings.chatTemperature,
+      max_tokens: 2048,
+      messages,
+    }),
+  })
+
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Chat: ${res.status} ${err}`)
+  }
+
+  const data = (await res.json()) as {
+    choices?: { message?: { content?: string } }[]
+  }
+  return (data.choices?.[0]?.message?.content ?? '').trim()
+}

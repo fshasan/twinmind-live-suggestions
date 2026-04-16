@@ -1,0 +1,155 @@
+import { create } from 'zustand'
+import type {
+  AppSettings,
+  ChatMessage,
+  LiveSuggestion,
+  SuggestionBatch,
+  TranscriptLine,
+} from '../types'
+import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY } from '../lib/defaults'
+
+function loadSettings(): AppSettings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
+    if (!raw) return { ...DEFAULT_SETTINGS }
+    const parsed = JSON.parse(raw) as Partial<AppSettings>
+    return { ...DEFAULT_SETTINGS, ...parsed }
+  } catch {
+    return { ...DEFAULT_SETTINGS }
+  }
+}
+
+function saveSettings(s: AppSettings) {
+  localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(s))
+}
+
+export function buildTranscriptWindow(
+  lines: TranscriptLine[],
+  maxChars: number,
+): string {
+  const full = lines.map((l) => l.text).join('\n')
+  if (full.length <= maxChars) return full
+  return full.slice(-maxChars)
+}
+
+export function priorSuggestionsHint(batches: SuggestionBatch[]): string {
+  const latest = batches[0]
+  if (!latest) return '[]'
+  return JSON.stringify(
+    latest.suggestions.map((s) => ({
+      title: s.title,
+      preview: s.preview,
+      kind: s.kind,
+    })),
+  )
+}
+
+interface SessionState {
+  sessionStartedAt: number | null
+  settings: AppSettings
+  transcript: TranscriptLine[]
+  suggestionBatches: SuggestionBatch[]
+  chat: ChatMessage[]
+  isRecording: boolean
+  isBusy: boolean
+  statusLine: string | null
+  error: string | null
+
+  patchSettings: (partial: Partial<AppSettings>) => void
+  resetSession: () => void
+
+  appendTranscriptChunk: (text: string) => void
+  prependSuggestionBatch: (items: LiveSuggestion[]) => void
+  pushChat: (msg: Omit<ChatMessage, 'id' | 't'> & Partial<Pick<ChatMessage, 'id' | 't'>>) => ChatMessage
+  updateChatContent: (id: string, content: string) => void
+
+  setRecording: (v: boolean) => void
+  setBusy: (v: boolean) => void
+  setStatus: (s: string | null) => void
+  setError: (e: string | null) => void
+
+  ensureSessionStart: () => void
+}
+
+export const useSessionStore = create<SessionState>((set, get) => ({
+  sessionStartedAt: null,
+  settings: loadSettings(),
+  transcript: [],
+  suggestionBatches: [],
+  chat: [],
+  isRecording: false,
+  isBusy: false,
+  statusLine: null,
+  error: null,
+
+  patchSettings: (partial) => {
+    const next = { ...get().settings, ...partial }
+    saveSettings(next)
+    set({ settings: next })
+  },
+
+  resetSession: () =>
+    set({
+      transcript: [],
+      suggestionBatches: [],
+      chat: [],
+      sessionStartedAt: Date.now(),
+      error: null,
+      statusLine: null,
+    }),
+
+  appendTranscriptChunk: (text) => {
+    const t = Date.now()
+    const line: TranscriptLine = {
+      id: globalThis.crypto.randomUUID(),
+      t,
+      text: text.trim(),
+    }
+    if (!line.text) return
+    set((s) => {
+      const sessionStartedAt = s.sessionStartedAt ?? t
+      return {
+        transcript: [...s.transcript, line],
+        sessionStartedAt,
+      }
+    })
+  },
+
+  prependSuggestionBatch: (items) => {
+    const batch: SuggestionBatch = {
+      id: globalThis.crypto.randomUUID(),
+      t: Date.now(),
+      suggestions: items,
+    }
+    set((s) => ({
+      suggestionBatches: [batch, ...s.suggestionBatches],
+    }))
+  },
+
+  pushChat: (msg) => {
+    const full: ChatMessage = {
+      id: msg.id ?? globalThis.crypto.randomUUID(),
+      t: msg.t ?? Date.now(),
+      role: msg.role,
+      content: msg.content,
+      linkedSuggestionId: msg.linkedSuggestionId,
+    }
+    set((s) => ({ chat: [...s.chat, full] }))
+    return full
+  },
+
+  updateChatContent: (id, content) =>
+    set((s) => ({
+      chat: s.chat.map((m) => (m.id === id ? { ...m, content } : m)),
+    })),
+
+  setRecording: (v) => set({ isRecording: v }),
+  setBusy: (v) => set({ isBusy: v }),
+  setStatus: (s) => set({ statusLine: s }),
+  setError: (e) => set({ error: e }),
+
+  ensureSessionStart: () =>
+    set((s) => ({
+      sessionStartedAt: s.sessionStartedAt ?? Date.now(),
+    })),
+}))
