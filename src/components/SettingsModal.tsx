@@ -128,6 +128,9 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
               <span className="font-medium text-zinc-200">
                 Expanded context (chars)
               </span>
+              <span className="text-xs text-zinc-500">
+                Full-session transcript for card details; very long meetings may truncate middle.
+              </span>
               <input
                 type="number"
                 min={1000}

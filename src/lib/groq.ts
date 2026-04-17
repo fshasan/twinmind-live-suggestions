@@ -1,3 +1,4 @@
+import { formatGroqError } from './apiError'
 import type { AppSettings, LiveSuggestion } from '../types'
 
 const GROQ_BASE = 'https://api.groq.com/openai/v1'
@@ -55,7 +56,7 @@ export async function transcribeAudio(
   })
   if (!res.ok) {
     const err = await res.text()
-    throw new Error(`Whisper: ${res.status} ${err}`)
+    throw new Error(`Whisper: ${formatGroqError(res.status, err)}`)
   }
   const data = (await res.json()) as { text?: string }
   return (data.text ?? '').trim()
@@ -116,13 +117,13 @@ export async function fetchLiveSuggestions(
   if (!apiKey) throw new Error('Add your Groq API key in Settings.')
 
   const userContent = [
-    'RECENT TRANSCRIPT:',
+    'RECENT TRANSCRIPT (lines may be timestamped [HH:MM:SS]):',
     transcriptWindow || '(empty so far)',
     '',
-    'PRIOR_SUGGESTIONS_JSON:',
+    'PRIOR_SUGGESTIONS_JSON (avoid repeating these angles):',
     priorSuggestionsJson || '[]',
     '',
-    'Return JSON: {"suggestions":[{"kind":"question|talking_point|answer|fact_check|clarify","title":"...","preview":"..."}, ...]} — exactly 3 items.',
+    'Return JSON only: {"suggestions":[{"kind":"question|talking_point|answer|fact_check|clarify","title":"...","preview":"..."}, ...]} — exactly 3 items.',
   ].join('\n')
 
   const res = await fetch(`${GROQ_BASE}/chat/completions`, {
@@ -145,7 +146,7 @@ export async function fetchLiveSuggestions(
 
   if (!res.ok) {
     const err = await res.text()
-    throw new Error(`Suggestions: ${res.status} ${err}`)
+    throw new Error(`Suggestions: ${formatGroqError(res.status, err)}`)
   }
 
   const data = (await res.json()) as {
@@ -157,65 +158,55 @@ export async function fetchLiveSuggestions(
   return withIds(parseSuggestionsPayload(raw))
 }
 
-export async function fetchExpandedAnswer(
-  settings: AppSettings,
-  suggestion: Pick<LiveSuggestion, 'title' | 'preview' | 'kind'>,
-  transcriptWindow: string,
-): Promise<string> {
-  const apiKey = settings.groqApiKey.trim()
-  if (!apiKey) throw new Error('Add your Groq API key in Settings.')
-
-  const userContent = [
-    'TAPPED SUGGESTION:',
-    JSON.stringify(suggestion, null, 2),
-    '',
-    'TRANSCRIPT (expanded window):',
-    transcriptWindow || '(empty)',
-  ].join('\n')
-
-  const res = await fetch(`${GROQ_BASE}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      ...authHeaders(apiKey),
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: settings.llmModel,
-      temperature: settings.chatTemperature,
-      max_tokens: 2048,
-      messages: [
-        { role: 'system', content: settings.expandedAnswerPrompt },
-        { role: 'user', content: userContent },
-      ],
-    }),
-  })
-
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Expanded answer: ${res.status} ${err}`)
-  }
-
-  const data = (await res.json()) as {
-    choices?: { message?: { content?: string } }[]
-  }
-  return (data.choices?.[0]?.message?.content ?? '').trim()
+type ChatMessage = {
+  role: 'system' | 'user' | 'assistant'
+  content: string
 }
 
-export async function fetchChatReply(
+async function* iterateChatStream(
+  body: ReadableStream<Uint8Array>,
+): AsyncGenerator<string> {
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed.startsWith('data:')) continue
+      const data = trimmed.slice(5).trim()
+      if (data === '[DONE]') return
+      try {
+        const json = JSON.parse(data) as {
+          choices?: { delta?: { content?: string | null } }[]
+        }
+        const content = json.choices?.[0]?.delta?.content
+        if (typeof content === 'string' && content.length > 0) {
+          yield content
+        }
+      } catch {
+        /* ignore malformed chunk */
+      }
+    }
+  }
+}
+
+/**
+ * Streams chat completion from Groq (first token latency for UX).
+ * Returns the full concatenated text when the stream ends.
+ */
+export async function streamChatCompletion(
   settings: AppSettings,
-  transcriptWindow: string,
-  chatMessages: { role: 'user' | 'assistant'; content: string }[],
+  messages: ChatMessage[],
+  onDelta: (chunk: string) => void,
+  options?: { temperature?: number; max_tokens?: number },
 ): Promise<string> {
   const apiKey = settings.groqApiKey.trim()
   if (!apiKey) throw new Error('Add your Groq API key in Settings.')
-
-  const messages = [
-    {
-      role: 'system' as const,
-      content: `${settings.chatPrompt}\n\nTRANSCRIPT (context window):\n${transcriptWindow || '(empty)'}`,
-    },
-    ...chatMessages.map((m) => ({ role: m.role, content: m.content })),
-  ]
 
   const res = await fetch(`${GROQ_BASE}/chat/completions`, {
     method: 'POST',
@@ -225,19 +216,26 @@ export async function fetchChatReply(
     },
     body: JSON.stringify({
       model: settings.llmModel,
-      temperature: settings.chatTemperature,
-      max_tokens: 2048,
+      temperature: options?.temperature ?? settings.chatTemperature,
+      max_tokens: options?.max_tokens ?? 2048,
       messages,
+      stream: true,
     }),
   })
 
   if (!res.ok) {
     const err = await res.text()
-    throw new Error(`Chat: ${res.status} ${err}`)
+    throw new Error(formatGroqError(res.status, err))
   }
 
-  const data = (await res.json()) as {
-    choices?: { message?: { content?: string } }[]
+  if (!res.body) {
+    throw new Error('No response body from Groq.')
   }
-  return (data.choices?.[0]?.message?.content ?? '').trim()
+
+  let full = ''
+  for await (const chunk of iterateChatStream(res.body)) {
+    full += chunk
+    onDelta(chunk)
+  }
+  return full.trim()
 }

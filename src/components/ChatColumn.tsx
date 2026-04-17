@@ -39,7 +39,13 @@ export function ChatColumn({ messages, onSend, disabled }: Props) {
           </p>
         ) : (
           <ul className="flex flex-col gap-4">
-            {messages.map((m) => (
+            {messages.map((m, i) => {
+              const pendingStream =
+                m.role === 'assistant' &&
+                m.content === '' &&
+                disabled &&
+                i === messages.length - 1
+              return (
               <li key={m.id} className="flex flex-col gap-1">
                 <div className="flex items-center justify-between gap-2">
                   <span
@@ -61,10 +67,17 @@ export function ChatColumn({ messages, onSend, disabled }: Props) {
                   </time>
                 </div>
                 <p className="whitespace-pre-wrap leading-relaxed text-[var(--color-fg)]">
-                  {m.content}
+                  {pendingStream ? (
+                    <span className="italic text-[var(--color-muted)]">
+                      Thinking...
+                    </span>
+                  ) : (
+                    m.content
+                  )}
                 </p>
               </li>
-            ))}
+              )
+            })}
           </ul>
         )}
         <div ref={bottomRef} />

@@ -23,14 +23,10 @@ function saveSettings(s: AppSettings) {
   localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(s))
 }
 
-export function buildTranscriptWindow(
-  lines: TranscriptLine[],
-  maxChars: number,
-): string {
-  const full = lines.map((l) => l.text).join('\n')
-  if (full.length <= maxChars) return full
-  return full.slice(-maxChars)
-}
+export {
+  buildExpandedTranscriptContext,
+  buildTranscriptWindow,
+} from '../lib/transcriptPrompt'
 
 export function priorSuggestionsHint(batches: SuggestionBatch[]): string {
   const latest = batches[0]
