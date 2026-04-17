@@ -123,6 +123,29 @@ export default function App() {
         </div>
       </header>
 
+      {!settings.groqApiKey?.trim() ? (
+        <div className="shrink-0 border-b border-amber-800/50 bg-amber-950/35 px-4 py-2 text-left text-sm text-amber-100">
+          <strong className="font-medium">Groq API key required.</strong> Open{' '}
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            className="font-semibold text-amber-50 underline decoration-amber-500/80 underline-offset-2 hover:text-white"
+          >
+            Settings
+          </button>{' '}
+          and paste your key from{' '}
+          <a
+            href="https://console.groq.com/keys"
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-amber-50 underline decoration-amber-500/80 underline-offset-2 hover:text-white"
+          >
+            console.groq.com
+          </a>
+          . Keys stored on localhost do not carry over to this deployed URL.
+        </div>
+      ) : null}
+
       {error ? (
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-red-900/50 bg-red-950/40 px-4 py-2 text-left text-sm text-red-200">
           <span className="min-w-0 flex-1">{error}</span>

@@ -7,7 +7,7 @@ Single-page app that captures microphone audio in ~30s chunks (Groq **Whisper La
 - **Left:** Start/stop mic, rolling transcript (auto-scroll), ~30s chunks while recording.
 - **Middle:** Batches of 3 suggestions (newest on top). **Refresh** transcribes pending audio then regenerates suggestions (mic must be on).
 - **Right:** Tap a suggestion for a detailed answer, or type a question. Chat streams token-by-token.
-- **Settings:** Paste your **Groq API key** and edit prompts/context sizes (defaults tuned for quality). Key is stored in `localStorage` in this browser only.
+- **Settings:** Paste your **Groq API key** and edit prompts/context sizes (defaults tuned for quality). The key is stored in `localStorage` for this origin only (your `localhost` key does **not** apply on `*.vercel.app`).
 - **Export:** Download JSON (transcript, suggestion batches, chat) for review.
 
 ## Prerequisites
@@ -31,13 +31,38 @@ npm run build
 npm run preview
 ```
 
-## Deploy (e.g. Vercel)
+## Deploy on Vercel
 
-- **Framework:** Vite  
-- **Build command:** `npm run build`  
-- **Output directory:** `dist`  
+The repo includes `vercel.json` (Vite, `dist` output). Pick one path:
 
-All API calls go **from the browser** to `api.groq.com`. If the browser blocks requests (CORS), add a same-origin proxy on your host.
+### Option A — GitHub (recommended)
+
+1. Push this repo to GitHub (already done if you use `origin`).
+2. Open [vercel.com](https://vercel.com) → **Add New** → **Project** → **Import** your repository.
+3. Vercel should detect **Vite** automatically. Confirm:
+   - **Install Command:** `npm install`
+   - **Build Command:** `npm run build`
+   - **Output Directory:** `dist`
+4. **Environment variables (optional):**
+   - By default, each visitor adds their key in **Settings** after deploy.
+   - To bake in a default key for demos only, add **`VITE_GROQ_API_KEY`** in Vercel → Project → Settings → Environment Variables (Production). It must be prefixed with `VITE_` or Vite will not expose it to the browser. **Warning:** client-side env vars are visible in the downloaded JavaScript; treat this like a public key.
+5. Click **Deploy**. Production URL will look like `https://<project>.vercel.app`.
+
+If you see **401 Invalid API Key** on the deployed site, open **Settings** on that URL and paste a valid key from [console.groq.com/keys](https://console.groq.com/keys), or set `VITE_GROQ_API_KEY` as above and redeploy.
+
+### Option B — Vercel CLI
+
+```bash
+npm i -g vercel   # or: npx vercel@latest
+vercel login
+vercel            # preview
+vercel --prod     # production
+```
+
+### Notes
+
+- All API calls run **in the browser** to `api.groq.com`. If anything fails in production, check the browser **Network** tab (CORS or ad blockers).
+- **HTTPS** is required for `getUserMedia` (microphone) in most browsers; Vercel provides HTTPS by default.
 
 ## Stack
 

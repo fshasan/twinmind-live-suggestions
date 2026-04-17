@@ -56,7 +56,7 @@ export async function transcribeAudio(
   })
   if (!res.ok) {
     const err = await res.text()
-    throw new Error(`Whisper: ${formatGroqError(res.status, err)}`)
+    throw new Error(`Whisper / transcription: ${formatGroqError(res.status, err)}`)
   }
   const data = (await res.json()) as { text?: string }
   return (data.text ?? '').trim()
