@@ -7,15 +7,29 @@ import type {
   TranscriptLine,
 } from '../types'
 import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY } from '../lib/defaults'
+import { groqKeyFromBuildEnv } from '../lib/env'
 
 function loadSettings(): AppSettings {
+  const envKey = groqKeyFromBuildEnv()
   try {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
-    if (!raw) return { ...DEFAULT_SETTINGS }
+    if (!raw) {
+      return {
+        ...DEFAULT_SETTINGS,
+        groqApiKey: envKey || DEFAULT_SETTINGS.groqApiKey,
+      }
+    }
     const parsed = JSON.parse(raw) as Partial<AppSettings>
-    return { ...DEFAULT_SETTINGS, ...parsed }
+    const merged: AppSettings = { ...DEFAULT_SETTINGS, ...parsed }
+    if (!merged.groqApiKey?.trim()) {
+      merged.groqApiKey = envKey || ''
+    }
+    return merged
   } catch {
-    return { ...DEFAULT_SETTINGS }
+    return {
+      ...DEFAULT_SETTINGS,
+      groqApiKey: envKey || DEFAULT_SETTINGS.groqApiKey,
+    }
   }
 }
 
@@ -23,14 +37,10 @@ function saveSettings(s: AppSettings) {
   localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(s))
 }
 
-export function buildTranscriptWindow(
-  lines: TranscriptLine[],
-  maxChars: number,
-): string {
-  const full = lines.map((l) => l.text).join('\n')
-  if (full.length <= maxChars) return full
-  return full.slice(-maxChars)
-}
+export {
+  buildExpandedTranscriptContext,
+  buildTranscriptWindow,
+} from '../lib/transcriptPrompt'
 
 export function priorSuggestionsHint(batches: SuggestionBatch[]): string {
   const latest = batches[0]
@@ -84,6 +94,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   patchSettings: (partial) => {
     const next = { ...get().settings, ...partial }
+    if (typeof next.groqApiKey === 'string') {
+      next.groqApiKey = next.groqApiKey.trim()
+    }
     saveSettings(next)
     set({ settings: next })
   },

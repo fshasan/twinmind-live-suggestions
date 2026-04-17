@@ -11,6 +11,8 @@ const KIND_LABEL: Record<LiveSuggestion['kind'], string> = {
 interface Props {
   batches: SuggestionBatch[]
   isBusy: boolean
+  /** Refresh requires the mic to be on so new audio can be transcribed first. */
+  canRefresh: boolean
   onRefresh: () => void
   onSelect: (s: LiveSuggestion) => void
 }
@@ -18,6 +20,7 @@ interface Props {
 export function SuggestionsColumn({
   batches,
   isBusy,
+  canRefresh,
   onRefresh,
   onSelect,
 }: Props) {
@@ -29,7 +32,12 @@ export function SuggestionsColumn({
         </h2>
         <button
           type="button"
-          disabled={isBusy}
+          disabled={isBusy || !canRefresh}
+          title={
+            canRefresh
+              ? 'Transcribe latest audio, then update suggestions'
+              : 'Start the microphone to refresh transcript and suggestions'
+          }
           onClick={onRefresh}
           className="rounded-full bg-[var(--color-panel)] px-3 py-1.5 text-xs font-medium text-[var(--color-fg)] ring-1 ring-[var(--color-border)] transition hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/5"
         >

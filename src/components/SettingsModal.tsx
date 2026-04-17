@@ -1,6 +1,11 @@
 import { useState } from 'react'
 import type { AppSettings } from '../types'
 
+const fieldClass =
+  'rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:border-purple-500/60 focus:outline-none focus:ring-1 focus:ring-purple-500/40'
+
+const labelClass = 'font-medium text-[var(--color-fg-strong)]'
+
 interface Props {
   settings: AppSettings
   onClose: () => void
@@ -16,19 +21,22 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px] dark:bg-black/70">
       <div
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl"
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--color-border)] bg-[var(--color-panel)] p-6 shadow-2xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-title"
       >
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <h2 id="settings-title" className="text-lg font-semibold text-zinc-50">
+            <h2
+              id="settings-title"
+              className="text-lg font-semibold text-[var(--color-fg-strong)]"
+            >
               Settings
             </h2>
-            <p className="mt-1 text-sm text-zinc-400">
+            <p className="mt-1 text-sm text-[var(--color-muted)]">
               Your Groq API key stays in this browser (localStorage). Nothing is
               sent to our servers.
             </p>
@@ -36,7 +44,7 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+            className="rounded-lg px-2 py-1 text-sm text-[var(--color-muted)] hover:bg-black/5 hover:text-[var(--color-fg)] dark:hover:bg-white/10"
           >
             Close
           </button>
@@ -44,41 +52,39 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
 
         <div className="flex flex-col gap-4 text-left text-sm">
           <label className="flex flex-col gap-1">
-            <span className="font-medium text-zinc-200">Groq API key</span>
+            <span className={labelClass}>Groq API key</span>
             <input
               type="password"
               autoComplete="off"
               value={draft.groqApiKey}
               onChange={(e) => update('groqApiKey', e.target.value)}
-              className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100 focus:border-purple-500/60 focus:outline-none focus:ring-1 focus:ring-purple-500/40"
+              className={fieldClass}
               placeholder="gsk_…"
             />
           </label>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1">
-              <span className="font-medium text-zinc-200">Whisper model</span>
+              <span className={labelClass}>Whisper model</span>
               <input
                 value={draft.whisperModel}
                 onChange={(e) => update('whisperModel', e.target.value)}
-                className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+                className={fieldClass}
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="font-medium text-zinc-200">LLM model</span>
+              <span className={labelClass}>LLM model</span>
               <input
                 value={draft.llmModel}
                 onChange={(e) => update('llmModel', e.target.value)}
-                className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+                className={fieldClass}
               />
             </label>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1">
-              <span className="font-medium text-zinc-200">
-                Chunk interval (ms)
-              </span>
+              <span className={labelClass}>Chunk interval (ms)</span>
               <input
                 type="number"
                 min={5000}
@@ -87,13 +93,11 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
                 onChange={(e) =>
                   update('chunkIntervalMs', Number(e.target.value) || 30_000)
                 }
-                className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+                className={fieldClass}
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="font-medium text-zinc-200">
-                Suggestion temperature
-              </span>
+              <span className={labelClass}>Suggestion temperature</span>
               <input
                 type="number"
                 min={0}
@@ -103,16 +107,14 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
                 onChange={(e) =>
                   update('suggestionTemperature', Number(e.target.value))
                 }
-                className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+                className={fieldClass}
               />
             </label>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="flex flex-col gap-1">
-              <span className="font-medium text-zinc-200">
-                Suggest context (chars)
-              </span>
+              <span className={labelClass}>Suggest context (chars)</span>
               <input
                 type="number"
                 min={1000}
@@ -121,12 +123,14 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
                 onChange={(e) =>
                   update('suggestionContextChars', Number(e.target.value))
                 }
-                className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+                className={fieldClass}
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="font-medium text-zinc-200">
-                Expanded context (chars)
+              <span className={labelClass}>Expanded context (chars)</span>
+              <span className="text-xs text-[var(--color-muted)]">
+                Full-session transcript for card details; very long meetings may
+                truncate middle.
               </span>
               <input
                 type="number"
@@ -136,13 +140,11 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
                 onChange={(e) =>
                   update('expandedContextChars', Number(e.target.value))
                 }
-                className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+                className={fieldClass}
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="font-medium text-zinc-200">
-                Chat context (chars)
-              </span>
+              <span className={labelClass}>Chat context (chars)</span>
               <input
                 type="number"
                 min={1000}
@@ -151,47 +153,43 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
                 onChange={(e) =>
                   update('chatContextChars', Number(e.target.value))
                 }
-                className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+                className={fieldClass}
               />
             </label>
           </div>
 
           <label className="flex flex-col gap-1">
-            <span className="font-medium text-zinc-200">
-              Live suggestion system prompt
-            </span>
+            <span className={labelClass}>Live suggestion system prompt</span>
             <textarea
               value={draft.liveSuggestionPrompt}
               onChange={(e) => update('liveSuggestionPrompt', e.target.value)}
               rows={5}
-              className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono text-[13px] text-zinc-100"
+              className={`${fieldClass} font-mono text-[13px]`}
             />
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="font-medium text-zinc-200">
-              Expanded answer system prompt
-            </span>
+            <span className={labelClass}>Expanded answer system prompt</span>
             <textarea
               value={draft.expandedAnswerPrompt}
               onChange={(e) => update('expandedAnswerPrompt', e.target.value)}
               rows={4}
-              className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono text-[13px] text-zinc-100"
+              className={`${fieldClass} font-mono text-[13px]`}
             />
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="font-medium text-zinc-200">Chat system prompt</span>
+            <span className={labelClass}>Chat system prompt</span>
             <textarea
               value={draft.chatPrompt}
               onChange={(e) => update('chatPrompt', e.target.value)}
               rows={4}
-              className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono text-[13px] text-zinc-100"
+              className={`${fieldClass} font-mono text-[13px]`}
             />
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="font-medium text-zinc-200">Chat temperature</span>
+            <span className={labelClass}>Chat temperature</span>
             <input
               type="number"
               min={0}
@@ -201,16 +199,16 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
               onChange={(e) =>
                 update('chatTemperature', Number(e.target.value))
               }
-              className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100"
+              className={fieldClass}
             />
           </label>
         </div>
 
-        <div className="mt-6 flex justify-end gap-2">
+        <div className="mt-6 flex justify-end gap-2 border-t border-[var(--color-border)] pt-4">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
+            className="rounded-lg px-4 py-2 text-sm text-[var(--color-fg)] hover:bg-black/5 dark:hover:bg-white/10"
           >
             Cancel
           </button>
@@ -220,7 +218,7 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
               onSave(draft)
               onClose()
             }}
-            className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-500"
+            className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-500 dark:bg-violet-600 dark:hover:bg-violet-500"
           >
             Save
           </button>

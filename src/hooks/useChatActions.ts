@@ -1,6 +1,10 @@
 import { useCallback } from 'react'
-import { fetchChatReply, fetchExpandedAnswer } from '../lib/groq'
-import { buildTranscriptWindow, useSessionStore } from '../store/sessionStore'
+import { streamChatCompletion } from '../lib/groq'
+import {
+  buildExpandedTranscriptContext,
+  buildTranscriptWindow,
+} from '../lib/transcriptPrompt'
+import { useSessionStore } from '../store/sessionStore'
 import type { LiveSuggestion } from '../types'
 
 export function useChatActions() {
@@ -27,42 +31,57 @@ export function useChatActions() {
 
       const assistant = pushChat({
         role: 'assistant',
-        content: '…',
+        content: '',
       })
 
       setBusy(true)
       setError(null)
       try {
         const lines = useSessionStore.getState().transcript
-        const windowText = buildTranscriptWindow(
+        const transcriptText = buildExpandedTranscriptContext(
           lines,
           settings.expandedContextChars,
         )
-        const text = await fetchExpandedAnswer(
+        const userPayload = [
+          'TAPPED SUGGESTION:',
+          JSON.stringify(suggestion, null, 2),
+          '',
+          'FULL SESSION TRANSCRIPT (timestamped lines; middle may be omitted only if over the context limit):',
+          transcriptText || '(no transcript yet)',
+        ].join('\n')
+
+        await streamChatCompletion(
           settings,
-          {
-            title: suggestion.title,
-            preview: suggestion.preview,
-            kind: suggestion.kind,
+          [
+            { role: 'system', content: settings.expandedAnswerPrompt },
+            { role: 'user', content: userPayload },
+          ],
+          (chunk) => {
+            useSessionStore.setState((s) => ({
+              chat: s.chat.map((m) =>
+                m.id === assistant.id
+                  ? { ...m, content: m.content + chunk }
+                  : m,
+              ),
+            }))
           },
-          windowText,
+          { temperature: settings.chatTemperature, max_tokens: 2048 },
         )
-        updateChatContent(assistant.id, text)
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
-        updateChatContent(assistant.id, `Error: ${msg}`)
+        const soFar =
+          useSessionStore.getState().chat.find((m) => m.id === assistant.id)
+            ?.content ?? ''
+        updateChatContent(
+          assistant.id,
+          soFar ? `${soFar}\n\nError: ${msg}` : `Error: ${msg}`,
+        )
         setError(msg)
       } finally {
         setBusy(false)
       }
     },
-    [
-      pushChat,
-      setBusy,
-      setError,
-      settings,
-      updateChatContent,
-    ],
+    [pushChat, setBusy, setError, settings, updateChatContent],
   )
 
   const sendUserMessage = useCallback(
@@ -85,7 +104,7 @@ export function useChatActions() {
 
       const assistant = pushChat({
         role: 'assistant',
-        content: '…',
+        content: '',
       })
 
       setBusy(true)
@@ -97,11 +116,40 @@ export function useChatActions() {
           settings.chatContextChars,
         )
         const history = [...prior, { role: 'user' as const, content: text }]
-        const reply = await fetchChatReply(settings, windowText, history)
-        updateChatContent(assistant.id, reply)
+        const messages = [
+          {
+            role: 'system' as const,
+            content: `${settings.chatPrompt}\n\nTRANSCRIPT (timestamped, recent portion):\n${windowText || '(empty)'}`,
+          },
+          ...history.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+        ]
+
+        await streamChatCompletion(
+          settings,
+          messages,
+          (chunk) => {
+            useSessionStore.setState((s) => ({
+              chat: s.chat.map((m) =>
+                m.id === assistant.id
+                  ? { ...m, content: m.content + chunk }
+                  : m,
+              ),
+            }))
+          },
+          { temperature: settings.chatTemperature, max_tokens: 2048 },
+        )
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
-        updateChatContent(assistant.id, `Error: ${msg}`)
+        const soFar =
+          useSessionStore.getState().chat.find((m) => m.id === assistant.id)
+            ?.content ?? ''
+        updateChatContent(
+          assistant.id,
+          soFar ? `${soFar}\n\nError: ${msg}` : `Error: ${msg}`,
+        )
         setError(msg)
       } finally {
         setBusy(false)

@@ -135,39 +135,12 @@ export function useMeetingRecorder() {
     setRecording(false)
   }, [setRecording])
 
-  const refreshSuggestionsOnly = useCallback(async () => {
-    setBusy(true)
-    setStatus('Updating suggestions…')
-    setError(null)
-    try {
-      const settings = useSessionStore.getState().settings
-      const key = settings.groqApiKey.trim()
-      if (!key) throw new Error('Add your Groq API key in Settings.')
-
-      const lines = useSessionStore.getState().transcript
-      const windowText = buildTranscriptWindow(
-        lines,
-        settings.suggestionContextChars,
-      )
-      const prior = priorSuggestionsHint(
-        useSessionStore.getState().suggestionBatches,
-      )
-      const suggestions = await fetchLiveSuggestions(
-        settings,
-        windowText,
-        prior,
-      )
-      useSessionStore.getState().prependSuggestionBatch(suggestions)
-      setStatus(null)
-    } finally {
-      setBusy(false)
-    }
-  }, [setBusy, setError, setStatus])
-
   const refreshNow = useCallback(async () => {
     const rec = recorderRef.current
     if (!rec || rec.state === 'inactive') {
-      await refreshSuggestionsOnly()
+      setError(
+        'Start the microphone first. Refresh records new audio, updates the transcript, then refreshes suggestions.',
+      )
       return
     }
 
@@ -202,7 +175,7 @@ export function useMeetingRecorder() {
       const msg = e instanceof Error ? e.message : String(e)
       setError(msg)
     })
-  }, [enqueue, processAudioBlob, refreshSuggestionsOnly, setError])
+  }, [enqueue, processAudioBlob, setError])
 
   useEffect(() => {
     return () => {
