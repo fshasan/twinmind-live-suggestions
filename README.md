@@ -5,7 +5,7 @@ Single-page app that captures microphone audio in ~30s chunks (Groq **Whisper La
 ## Features
 
 - **Left:** Start/stop mic, rolling transcript (auto-scroll), ~30s chunks while recording.
-- **Middle:** Batches of 3 suggestions (newest on top). **Refresh** transcribes pending audio then regenerates suggestions (mic must be on).
+- **Middle:** Batches of 3 suggestions (newest on top). **Refresh** prepends another batch of 3 from the **latest transcript** in the store (works after you have transcript lines and a Groq key; the mic does not need to be on). New speech is still transcribed on each ~30s segment while recording.
 - **Right:** Tap a suggestion for a detailed answer, or type a question. Chat streams token-by-token.
 - **Settings:** Paste your **Groq API key** and edit prompts/context sizes (defaults tuned for quality). The key is stored in `localStorage` for this origin only (your `localhost` key does **not** apply on `*.vercel.app`).
 - **Export:** Download JSON (transcript, suggestion batches, chat) for review.

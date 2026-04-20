@@ -6,8 +6,10 @@ import type {
   SuggestionBatch,
   TranscriptLine,
 } from '../types'
+import { fetchLiveSuggestions } from '../lib/groq'
 import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY } from '../lib/defaults'
 import { groqKeyFromBuildEnv } from '../lib/env'
+import { buildTranscriptWindow } from '../lib/transcriptPrompt'
 
 function loadSettings(): AppSettings {
   const envKey = groqKeyFromBuildEnv()
@@ -79,6 +81,8 @@ interface SessionState {
   setError: (e: string | null) => void
 
   ensureSessionStart: () => void
+  /** Refresh button: new 3 suggestions from latest transcript (Groq chat only). */
+  runLiveSuggestionRefresh: () => Promise<void>
 }
 
 export const useSessionStore = create<SessionState>((set, get) => ({
@@ -165,4 +169,26 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set((s) => ({
       sessionStartedAt: s.sessionStartedAt ?? Date.now(),
     })),
+
+  runLiveSuggestionRefresh: async () => {
+    const { settings, transcript, suggestionBatches } = get()
+    const key = settings.groqApiKey.trim()
+    if (!key) throw new Error('Add your Groq API key in Settings.')
+
+    const refreshTag =
+      '\n\n[Manual refresh: return 3 new cards grounded in the transcript; do not repeat the same angles as the current top batch.]'
+    const budget = Math.max(
+      2000,
+      settings.suggestionContextChars - refreshTag.length,
+    )
+    const windowText =
+      buildTranscriptWindow(transcript, budget) + refreshTag
+    const prior = priorSuggestionsHint(suggestionBatches)
+    const suggestions = await fetchLiveSuggestions(
+      settings,
+      windowText,
+      prior,
+    )
+    get().prependSuggestionBatch(suggestions)
+  },
 }))

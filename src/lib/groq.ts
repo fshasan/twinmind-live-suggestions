@@ -79,8 +79,21 @@ const KINDS = new Set<LiveSuggestion['kind']>([
   'clarify',
 ])
 
+/** Models sometimes wrap JSON in fences or add prose; extract a parseable object. */
+function extractJsonObjectString(raw: string): string {
+  let s = raw.trim()
+  const fenced = s.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```/im)
+  if (fenced) s = fenced[1].trim()
+  const start = s.indexOf('{')
+  const end = s.lastIndexOf('}')
+  if (start >= 0 && end > start) return s.slice(start, end + 1)
+  return s
+}
+
 function parseSuggestionsPayload(raw: string): Omit<LiveSuggestion, 'id'>[] {
-  const parsed = JSON.parse(raw) as { suggestions?: unknown }
+  const parsed = JSON.parse(extractJsonObjectString(raw)) as {
+    suggestions?: unknown
+  }
   const list = parsed.suggestions
   if (!Array.isArray(list) || list.length !== 3) {
     throw new Error('Model must return JSON with exactly 3 suggestions.')
@@ -116,15 +129,30 @@ export async function fetchLiveSuggestions(
   const apiKey = settings.groqApiKey.trim()
   if (!apiKey) throw new Error('Add your Groq API key in Settings.')
 
-  const userContent = [
+  const priorTrimmed = (priorSuggestionsJson ?? '').trim()
+  const priorEmpty = priorTrimmed.length === 0 || priorTrimmed === '[]'
+
+  const userParts = [
     'RECENT TRANSCRIPT (lines may be timestamped [HH:MM:SS]):',
     transcriptWindow || '(empty so far)',
     '',
-    'PRIOR_SUGGESTIONS_JSON (avoid repeating these angles):',
-    priorSuggestionsJson || '[]',
-    '',
+  ]
+  if (priorEmpty) {
+    userParts.push(
+      'No prior suggestion batch for this request. Produce exactly 3 distinct suggestions grounded only in the transcript above.',
+      '',
+    )
+  } else {
+    userParts.push(
+      'PRIOR_SUGGESTIONS_JSON (avoid repeating these angles):',
+      priorTrimmed,
+      '',
+    )
+  }
+  userParts.push(
     'Return JSON only: {"suggestions":[{"kind":"question|talking_point|answer|fact_check|clarify","title":"...","preview":"..."}, ...]} — exactly 3 items.',
-  ].join('\n')
+  )
+  const userContent = userParts.join('\n')
 
   const res = await fetch(`${GROQ_BASE}/chat/completions`, {
     method: 'POST',

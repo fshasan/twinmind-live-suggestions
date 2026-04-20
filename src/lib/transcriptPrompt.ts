@@ -20,9 +20,25 @@ export function buildTranscriptWindow(
   lines: TranscriptLine[],
   maxChars: number,
 ): string {
-  const full = formatTranscriptLines(lines)
-  if (full.length <= maxChars) return full
-  return full.slice(-maxChars)
+  if (lines.length === 0 || maxChars <= 0) return ''
+
+  const picked: string[] = []
+  let used = 0
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = `[${formatLineTime(lines[i].t)}] ${lines[i].text}`
+    const sep = picked.length > 0 ? 1 : 0
+    if (used + sep + line.length > maxChars) {
+      if (picked.length === 0) {
+        return line.length > maxChars ? line.slice(-maxChars) : line
+      }
+      break
+    }
+    picked.push(line)
+    used += sep + line.length
+  }
+
+  return picked.reverse().join('\n')
 }
 
 /**
