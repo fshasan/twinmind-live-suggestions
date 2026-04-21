@@ -67,6 +67,7 @@ interface SessionState {
   /** True while the Refresh action is awaiting Groq (manual only, not segment pipeline). */
   liveSuggestionsRefreshPending: boolean
   statusLine: string | null
+  error: string | null
 
   patchSettings: (partial: Partial<AppSettings>) => void
   resetSession: () => void
@@ -79,6 +80,7 @@ interface SessionState {
   setRecording: (v: boolean) => void
   setBusy: (v: boolean) => void
   setStatus: (s: string | null) => void
+  setError: (e: string | null) => void
 
   ensureSessionStart: () => void
   /** Refresh button: new 3 suggestions from latest transcript (Groq chat only). */
@@ -95,6 +97,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   isBusy: false,
   liveSuggestionsRefreshPending: false,
   statusLine: null,
+  error: null,
 
   patchSettings: (partial) => {
     const next = { ...get().settings, ...partial }
@@ -111,6 +114,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       suggestionBatches: [],
       chat: [],
       sessionStartedAt: Date.now(),
+      error: null,
       statusLine: null,
       liveSuggestionsRefreshPending: false,
     }),
@@ -133,7 +137,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   prependSuggestionBatch: (items) => {
-    if (items.length === 0) return
     const batch: SuggestionBatch = {
       id: globalThis.crypto.randomUUID(),
       t: Date.now(),
@@ -164,6 +167,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   setRecording: (v) => set({ isRecording: v }),
   setBusy: (v) => set({ isBusy: v }),
   setStatus: (s) => set({ statusLine: s }),
+  setError: (e) => set({ error: e }),
 
   ensureSessionStart: () =>
     set((s) => ({
@@ -173,7 +177,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   runLiveSuggestionRefresh: async () => {
     const { settings, transcript, suggestionBatches } = get()
     const key = settings.groqApiKey.trim()
-    if (!key) return
+    if (!key) throw new Error('Add your Groq API key in Settings.')
 
     set({ liveSuggestionsRefreshPending: true })
     try {
