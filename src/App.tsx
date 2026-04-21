@@ -20,6 +20,9 @@ export default function App() {
   const patchSettings = useSessionStore((s) => s.patchSettings)
   const isRecording = useSessionStore((s) => s.isRecording)
   const isBusy = useSessionStore((s) => s.isBusy)
+  const liveSuggestionsRefreshPending = useSessionStore(
+    (s) => s.liveSuggestionsRefreshPending,
+  )
   const statusLine = useSessionStore((s) => s.statusLine)
   const error = useSessionStore((s) => s.error)
   const setError = useSessionStore((s) => s.setError)
@@ -171,7 +174,7 @@ export default function App() {
         />
         <SuggestionsColumn
           batches={suggestionBatches}
-          isBusy={isBusy}
+          isRefreshLoading={liveSuggestionsRefreshPending}
           canRefresh={canRefreshSuggestions}
           onRefresh={() => void refreshNow()}
           onSelect={(s) => void openSuggestion(s)}

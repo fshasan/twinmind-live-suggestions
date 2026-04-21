@@ -64,6 +64,8 @@ interface SessionState {
   chat: ChatMessage[]
   isRecording: boolean
   isBusy: boolean
+  /** True while the Refresh action is awaiting Groq (manual only, not segment pipeline). */
+  liveSuggestionsRefreshPending: boolean
   statusLine: string | null
   error: string | null
 
@@ -93,6 +95,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   chat: [],
   isRecording: false,
   isBusy: false,
+  liveSuggestionsRefreshPending: false,
   statusLine: null,
   error: null,
 
@@ -113,6 +116,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       sessionStartedAt: Date.now(),
       error: null,
       statusLine: null,
+      liveSuggestionsRefreshPending: false,
     }),
 
   appendTranscriptChunk: (text) => {
@@ -175,20 +179,25 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const key = settings.groqApiKey.trim()
     if (!key) throw new Error('Add your Groq API key in Settings.')
 
-    const refreshTag =
-      '\n\n[Manual refresh: return 3 new cards grounded in the transcript; do not repeat the same angles as the current top batch.]'
-    const budget = Math.max(
-      2000,
-      settings.suggestionContextChars - refreshTag.length,
-    )
-    const windowText =
-      buildTranscriptWindow(transcript, budget) + refreshTag
-    const prior = priorSuggestionsHint(suggestionBatches)
-    const suggestions = await fetchLiveSuggestions(
-      settings,
-      windowText,
-      prior,
-    )
-    get().prependSuggestionBatch(suggestions)
+    set({ liveSuggestionsRefreshPending: true })
+    try {
+      const refreshTag =
+        '\n\n[Manual refresh: return 3 new cards grounded in the transcript; do not repeat the same angles as the current top batch.]'
+      const budget = Math.max(
+        2000,
+        settings.suggestionContextChars - refreshTag.length,
+      )
+      const windowText =
+        buildTranscriptWindow(transcript, budget) + refreshTag
+      const prior = priorSuggestionsHint(suggestionBatches)
+      const suggestions = await fetchLiveSuggestions(
+        settings,
+        windowText,
+        prior,
+      )
+      get().prependSuggestionBatch(suggestions)
+    } finally {
+      set({ liveSuggestionsRefreshPending: false })
+    }
   },
 }))
