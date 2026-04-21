@@ -95,10 +95,11 @@ function parseSuggestionsPayload(raw: string): Omit<LiveSuggestion, 'id'>[] {
     suggestions?: unknown
   }
   const list = parsed.suggestions
-  if (!Array.isArray(list) || list.length !== 3) {
-    throw new Error('Model must return JSON with exactly 3 suggestions.')
+  if (!Array.isArray(list) || list.length === 0) {
+    throw new Error('Suggestions were unavailable. Please try again.')
   }
-  return list.map((item, i) => {
+  const normalized = list.length > 3 ? list.slice(0, 3) : list
+  return normalized.map((item, i) => {
     const o = item as Record<string, unknown>
     const kind = o.kind
     const title = o.title

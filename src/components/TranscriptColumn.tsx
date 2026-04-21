@@ -21,7 +21,7 @@ export function TranscriptColumn({
   return (
     <section className="flex min-h-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-panel)]">
       <header className="flex shrink-0 items-center justify-between gap-2 border-b border-[var(--color-border)] px-4 py-3">
-        <h2 className="text-sm font-medium tracking-tight text-zinc-100">
+        <h2 className="text-sm font-medium tracking-tight text-[var(--color-fg-strong)]">
           Transcript
         </h2>
         <button
@@ -29,16 +29,16 @@ export function TranscriptColumn({
           onClick={onToggleMic}
           className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
             isRecording
-              ? 'bg-red-500/20 text-red-300 ring-1 ring-red-400/40'
-              : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] ring-1 ring-purple-400/30'
+              ? 'bg-red-500/15 text-red-700 ring-1 ring-red-500/35 dark:bg-red-500/20 dark:text-red-300 dark:ring-red-400/40'
+              : 'bg-[var(--color-accent-dim)] text-[var(--color-accent)] ring-1 ring-[var(--color-accent)]/25'
           }`}
         >
           {isRecording ? 'Stop mic' : 'Start mic'}
         </button>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-left text-sm leading-relaxed text-zinc-300">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 text-left text-sm leading-relaxed text-[var(--color-fg)]">
         {lines.length === 0 ? (
-          <p className="text-zinc-500">
+          <p className="text-[var(--color-muted)]">
             Start the microphone. New transcript lines appear about every 30
             seconds while you speak.
           </p>
@@ -47,7 +47,7 @@ export function TranscriptColumn({
             {lines.map((line) => (
               <li key={line.id}>
                 <time
-                  className="block text-[11px] font-medium uppercase tracking-wide text-zinc-500"
+                  className="block text-[11px] font-medium uppercase tracking-wide text-[var(--color-muted)]"
                   dateTime={new Date(line.t).toISOString()}
                 >
                   {new Date(line.t).toLocaleTimeString(undefined, {

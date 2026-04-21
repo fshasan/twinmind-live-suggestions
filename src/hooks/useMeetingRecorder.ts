@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { fetchLiveSuggestions, transcribeAudio } from '../lib/groq'
 import {
-  buildTranscriptWindow,
   priorSuggestionsHint,
   useSessionStore,
 } from '../store/sessionStore'
+import { buildSuggestionsContext } from '../lib/transcriptPrompt'
 
 function pickMimeType(): string | undefined {
   const candidates = [
@@ -83,7 +83,7 @@ export function useMeetingRecorder() {
         setStatus('Updating suggestions…')
 
         const lines = useSessionStore.getState().transcript
-        const windowText = buildTranscriptWindow(
+        const windowText = buildSuggestionsContext(
           lines,
           settings.suggestionContextChars,
         )
@@ -111,9 +111,17 @@ export function useMeetingRecorder() {
     const mimeType = pickMimeType()
     let rec: MediaRecorder
     try {
-      rec = mimeType
-        ? new MediaRecorder(stream, { mimeType })
-        : new MediaRecorder(stream)
+      // Reuse the same recorder between segments when possible. Re-creating
+      // MediaRecorder each chunk can introduce small gaps and, on some browsers,
+      // intermittent lost audio at segment boundaries.
+      const existing = recorderRef.current
+      if (existing && existing.state === 'inactive') {
+        rec = existing
+      } else {
+        rec = mimeType
+          ? new MediaRecorder(stream, { mimeType })
+          : new MediaRecorder(stream)
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setError(`Could not start audio recorder: ${msg}`)
@@ -146,7 +154,9 @@ export function useMeetingRecorder() {
     }
 
     const settings = useSessionStore.getState().settings
-    rec.start()
+    if (rec.state === 'inactive') {
+      rec.start()
+    }
     segmentTimerRef.current = window.setTimeout(() => {
       segmentTimerRef.current = undefined
       if (rec.state !== 'inactive') {
