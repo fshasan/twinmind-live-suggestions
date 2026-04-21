@@ -20,9 +20,15 @@ export default function App() {
   const patchSettings = useSessionStore((s) => s.patchSettings)
   const isRecording = useSessionStore((s) => s.isRecording)
   const isBusy = useSessionStore((s) => s.isBusy)
+  const liveSuggestionsRefreshPending = useSessionStore(
+    (s) => s.liveSuggestionsRefreshPending,
+  )
   const statusLine = useSessionStore((s) => s.statusLine)
   const error = useSessionStore((s) => s.error)
   const setError = useSessionStore((s) => s.setError)
+
+  const canRefreshSuggestions =
+    transcript.length > 0 && settings.groqApiKey.trim().length > 0
 
   const { startRecording, stopRecording, refreshNow } = useMeetingRecorder()
   const { openSuggestion, sendUserMessage } = useChatActions()
@@ -53,75 +59,76 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--color-border)] bg-[var(--color-panel)]/70 px-4 py-3 backdrop-blur">
-        <div>
-          <h1 className="text-base font-semibold tracking-tight text-[var(--color-fg-strong)]">
-            TwinMind · Live suggestions
-          </h1>
-          {statusLine ? (
-            <p className="mt-0.5 text-xs text-[var(--color-muted)]">{statusLine}</p>
-          ) : (
-            <p className="mt-0.5 text-xs text-[var(--color-muted)]">
-              Transcript and suggestions refresh about every 30s while recording.
-            </p>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-xs font-medium text-[var(--color-fg)] hover:bg-black/5 dark:hover:bg-white/5"
-            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-          >
-            <span className="inline-flex items-center gap-1.5">
-              {theme === 'dark' ? (
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 24 24"
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
-                </svg>
-              ) : (
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 24 24"
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="12" cy="12" r="4" />
-                  <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-                </svg>
-              )}
-              <span>{theme === 'dark' ? 'Dark' : 'Light'}</span>
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-xs font-medium text-[var(--color-fg)] hover:bg-black/5 dark:hover:bg-white/5"
-          >
-            Settings
-          </button>
-          <button
-            type="button"
-            onClick={exportSession}
-            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-xs font-medium text-[var(--color-fg)] hover:bg-black/5 dark:hover:bg-white/5"
-          >
-            Export session
-          </button>
-        </div>
-      </header>
+    <div className="box-border h-full min-h-0 p-4 sm:p-6">
+      <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--color-border)] bg-[var(--color-panel)]/70 px-4 py-3 backdrop-blur">
+          <div>
+            <h1 className="text-base font-semibold tracking-tight text-[var(--color-fg-strong)]">
+              TwinMind · Live suggestions
+            </h1>
+            {statusLine ? (
+              <p className="mt-0.5 text-xs text-[var(--color-muted)]">{statusLine}</p>
+            ) : (
+              <p className="mt-0.5 text-xs text-[var(--color-muted)]">
+                Transcript and suggestions refresh about every 30s while recording.
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-xs font-medium text-[var(--color-fg)] hover:bg-black/5 dark:hover:bg-white/5"
+              aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                {theme === 'dark' ? (
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
+                  </svg>
+                ) : (
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="4" />
+                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+                  </svg>
+                )}
+                <span>{theme === 'dark' ? 'Dark' : 'Light'}</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-xs font-medium text-[var(--color-fg)] hover:bg-black/5 dark:hover:bg-white/5"
+            >
+              Settings
+            </button>
+            <button
+              type="button"
+              onClick={exportSession}
+              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-1.5 text-xs font-medium text-[var(--color-fg)] hover:bg-black/5 dark:hover:bg-white/5"
+            >
+              Export session
+            </button>
+          </div>
+        </header>
 
       {!settings.groqApiKey?.trim() ? (
         <div className="shrink-0 border-b border-amber-800/50 bg-amber-950/35 px-4 py-2 text-left text-sm text-amber-100">
@@ -159,7 +166,7 @@ export default function App() {
         </div>
       ) : null}
 
-      <main className="grid min-h-0 flex-1 grid-cols-1 gap-0 lg:grid-cols-3">
+        <main className="grid min-h-0 flex-1 grid-cols-1 gap-0 lg:grid-cols-3">
         <TranscriptColumn
           lines={transcript}
           isRecording={isRecording}
@@ -167,8 +174,8 @@ export default function App() {
         />
         <SuggestionsColumn
           batches={suggestionBatches}
-          isBusy={isBusy}
-          canRefresh={isRecording}
+          isRefreshLoading={liveSuggestionsRefreshPending}
+          canRefresh={canRefreshSuggestions}
           onRefresh={() => void refreshNow()}
           onSelect={(s) => void openSuggestion(s)}
         />
@@ -177,15 +184,16 @@ export default function App() {
           onSend={(t) => void sendUserMessage(t)}
           disabled={isBusy}
         />
-      </main>
+        </main>
 
-      {settingsOpen ? (
-        <SettingsModal
-          settings={settings}
-          onClose={() => setSettingsOpen(false)}
-          onSave={(next) => patchSettings(next)}
-        />
-      ) : null}
+        {settingsOpen ? (
+          <SettingsModal
+            settings={settings}
+            onClose={() => setSettingsOpen(false)}
+            onSave={(next) => patchSettings(next)}
+          />
+        ) : null}
+      </div>
     </div>
   )
 }

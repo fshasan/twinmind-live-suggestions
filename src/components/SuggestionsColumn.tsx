@@ -10,8 +10,9 @@ const KIND_LABEL: Record<LiveSuggestion['kind'], string> = {
 
 interface Props {
   batches: SuggestionBatch[]
-  isBusy: boolean
-  /** Refresh requires the mic to be on so new audio can be transcribed first. */
+  /** True while a manual Refresh request is in flight. */
+  isRefreshLoading: boolean
+  /** Refresh runs when there is transcript text and a Groq API key (see App). */
   canRefresh: boolean
   onRefresh: () => void
   onSelect: (s: LiveSuggestion) => void
@@ -19,7 +20,7 @@ interface Props {
 
 export function SuggestionsColumn({
   batches,
-  isBusy,
+  isRefreshLoading,
   canRefresh,
   onRefresh,
   onSelect,
@@ -32,16 +33,18 @@ export function SuggestionsColumn({
         </h2>
         <button
           type="button"
-          disabled={isBusy || !canRefresh}
+          disabled={!canRefresh || isRefreshLoading}
           title={
-            canRefresh
-              ? 'Transcribe latest audio, then update suggestions'
-              : 'Start the microphone to refresh transcript and suggestions'
+            isRefreshLoading
+              ? 'Fetching new suggestions…'
+              : canRefresh
+                ? 'Add 3 new suggestions from the latest transcript (top of the list)'
+                : 'Add a Groq API key in Settings and wait for at least one transcript line'
           }
           onClick={onRefresh}
           className="rounded-full bg-[var(--color-panel)] px-3 py-1.5 text-xs font-medium text-[var(--color-fg)] ring-1 ring-[var(--color-border)] transition hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/5"
         >
-          {isBusy ? 'Working…' : 'Refresh'}
+          {isRefreshLoading ? 'Loading…' : 'Refresh'}
         </button>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
