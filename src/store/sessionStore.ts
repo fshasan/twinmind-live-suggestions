@@ -9,7 +9,7 @@ import type {
 import { fetchLiveSuggestions } from '../lib/groq'
 import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY } from '../lib/defaults'
 import { groqKeyFromBuildEnv } from '../lib/env'
-import { buildTranscriptWindow } from '../lib/transcriptPrompt'
+import { buildSuggestionsContext } from '../lib/transcriptPrompt'
 
 function loadSettings(): AppSettings {
   const envKey = groqKeyFromBuildEnv()
@@ -187,8 +187,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         2000,
         settings.suggestionContextChars - refreshTag.length,
       )
-      const windowText =
-        buildTranscriptWindow(transcript, budget) + refreshTag
+      const windowText = buildSuggestionsContext(transcript, budget) + refreshTag
       const prior = priorSuggestionsHint(suggestionBatches)
       const suggestions = await fetchLiveSuggestions(
         settings,
