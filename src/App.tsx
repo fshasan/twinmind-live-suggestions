@@ -24,8 +24,6 @@ export default function App() {
     (s) => s.liveSuggestionsRefreshPending,
   )
   const statusLine = useSessionStore((s) => s.statusLine)
-  const error = useSessionStore((s) => s.error)
-  const setError = useSessionStore((s) => s.setError)
 
   const canRefreshSuggestions =
     transcript.length > 0 && settings.groqApiKey.trim().length > 0
@@ -150,19 +148,6 @@ export default function App() {
             console.groq.com
           </a>
           . Keys stored on localhost do not carry over to this deployed URL.
-        </div>
-      ) : null}
-
-      {error ? (
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-red-900/50 bg-red-950/40 px-4 py-2 text-left text-sm text-red-200">
-          <span className="min-w-0 flex-1">{error}</span>
-          <button
-            type="button"
-            onClick={() => setError(null)}
-            className="shrink-0 rounded-md px-2 py-0.5 text-xs text-red-100 hover:bg-red-900/60"
-          >
-            Dismiss
-          </button>
         </div>
       ) : null}
 

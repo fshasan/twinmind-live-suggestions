@@ -40,12 +40,10 @@ export function useMeetingRecorder() {
   const setRecording = useSessionStore((s) => s.setRecording)
   const setBusy = useSessionStore((s) => s.setBusy)
   const setStatus = useSessionStore((s) => s.setStatus)
-  const setError = useSessionStore((s) => s.setError)
 
   const enqueue = useCallback((fn: () => Promise<void>) => {
-    queueRef.current = queueRef.current.then(fn).catch((e) => {
-      const msg = e instanceof Error ? e.message : String(e)
-      useSessionStore.getState().setError(msg)
+    queueRef.current = queueRef.current.then(fn).catch(() => {
+      /* Intentionally silent: no technical errors shown to viewers. */
     })
     return queueRef.current
   }, [])
@@ -60,7 +58,6 @@ export function useMeetingRecorder() {
         useSessionStore.getState().prependSuggestionBatch
 
       setBusy(true)
-      setError(null)
       try {
         const key = settings.groqApiKey.trim()
         if (!key) throw new Error('Add your Groq API key in Settings.')
@@ -101,7 +98,7 @@ export function useMeetingRecorder() {
         setBusy(false)
       }
     },
-    [setBusy, setError, setStatus],
+    [setBusy, setStatus],
   )
 
   const startSegment = useCallback(() => {
@@ -114,9 +111,7 @@ export function useMeetingRecorder() {
       rec = mimeType
         ? new MediaRecorder(stream, { mimeType })
         : new MediaRecorder(stream)
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      setError(`Could not start audio recorder: ${msg}`)
+    } catch {
       continueRecordingRef.current = false
       stream.getTracks().forEach((t) => t.stop())
       streamRef.current = null
@@ -157,32 +152,35 @@ export function useMeetingRecorder() {
         }
       }
     }, settings.chunkIntervalMs)
-  }, [enqueue, processAudioBlob, setError, setRecording])
+  }, [enqueue, processAudioBlob, setRecording])
 
   useEffect(() => {
     startSegmentRef.current = startSegment
   }, [startSegment])
 
   const startRecording = useCallback(async () => {
-    setError(null)
     const settings = useSessionStore.getState().settings
-    if (!settings.groqApiKey.trim()) {
-      setError('Add your Groq API key in Settings.')
-      return
+    if (!settings.groqApiKey.trim()) return
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      })
+      streamRef.current = stream
+      continueRecordingRef.current = true
+      startSegment()
+      if (recorderRef.current) {
+        setRecording(true)
+      }
+    } catch {
+      streamRef.current?.getTracks().forEach((t) => t.stop())
+      streamRef.current = null
+      continueRecordingRef.current = false
     }
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-      },
-    })
-    streamRef.current = stream
-    continueRecordingRef.current = true
-    startSegment()
-    if (recorderRef.current) {
-      setRecording(true)
-    }
-  }, [setError, setRecording, startSegment])
+  }, [setRecording, startSegment])
 
   const stopRecording = useCallback(() => {
     continueRecordingRef.current = false
@@ -208,30 +206,14 @@ export function useMeetingRecorder() {
 
   const refreshNow = useCallback(() => {
     const s = useSessionStore.getState()
-    if (!s.settings.groqApiKey.trim()) {
-      s.setError('Add your Groq API key in Settings.')
-      return
-    }
-    if (s.transcript.length === 0) {
-      s.setError(
-        'Nothing in the transcript yet. Start the mic and speak, then try refresh again.',
-      )
-      return
-    }
+    if (!s.settings.groqApiKey.trim()) return
+    if (s.transcript.length === 0) return
 
-    s.setError(null)
     s.setStatus('Updating suggestions…')
 
-    void s
-      .runLiveSuggestionRefresh()
-      .catch((e) => {
-        useSessionStore.getState().setError(
-          e instanceof Error ? e.message : String(e),
-        )
-      })
-      .finally(() => {
-        useSessionStore.getState().setStatus(null)
-      })
+    void s.runLiveSuggestionRefresh().finally(() => {
+      useSessionStore.getState().setStatus(null)
+    })
   }, [])
 
   useEffect(() => {

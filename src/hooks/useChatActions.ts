@@ -7,20 +7,19 @@ import {
 import { useSessionStore } from '../store/sessionStore'
 import type { LiveSuggestion } from '../types'
 
+const chatUnavailable =
+  "Couldn't complete that reply. You can try again in a moment."
+
 export function useChatActions() {
   const settings = useSessionStore((s) => s.settings)
   const pushChat = useSessionStore((s) => s.pushChat)
   const updateChatContent = useSessionStore((s) => s.updateChatContent)
   const setBusy = useSessionStore((s) => s.setBusy)
-  const setError = useSessionStore((s) => s.setError)
 
   const openSuggestion = useCallback(
     async (suggestion: LiveSuggestion) => {
       const key = settings.groqApiKey.trim()
-      if (!key) {
-        setError('Add your Groq API key in Settings.')
-        return
-      }
+      if (!key) return
 
       const userLine = `[${suggestion.kind}] ${suggestion.title}\n\n${suggestion.preview}`
       pushChat({
@@ -35,7 +34,6 @@ export function useChatActions() {
       })
 
       setBusy(true)
-      setError(null)
       try {
         const lines = useSessionStore.getState().transcript
         const transcriptText = buildExpandedTranscriptContext(
@@ -67,21 +65,19 @@ export function useChatActions() {
           },
           { temperature: settings.chatTemperature, max_tokens: 2048 },
         )
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
+      } catch {
         const soFar =
           useSessionStore.getState().chat.find((m) => m.id === assistant.id)
             ?.content ?? ''
         updateChatContent(
           assistant.id,
-          soFar ? `${soFar}\n\nError: ${msg}` : `Error: ${msg}`,
+          soFar ? `${soFar}\n\n${chatUnavailable}` : chatUnavailable,
         )
-        setError(msg)
       } finally {
         setBusy(false)
       }
     },
-    [pushChat, setBusy, setError, settings, updateChatContent],
+    [pushChat, setBusy, settings, updateChatContent],
   )
 
   const sendUserMessage = useCallback(
@@ -90,10 +86,7 @@ export function useChatActions() {
       if (!text) return
 
       const key = settings.groqApiKey.trim()
-      if (!key) {
-        setError('Add your Groq API key in Settings.')
-        return
-      }
+      if (!key) return
 
       const prior = useSessionStore.getState().chat.map((m) => ({
         role: m.role,
@@ -108,7 +101,6 @@ export function useChatActions() {
       })
 
       setBusy(true)
-      setError(null)
       try {
         const lines = useSessionStore.getState().transcript
         const windowText = buildTranscriptWindow(
@@ -141,21 +133,19 @@ export function useChatActions() {
           },
           { temperature: settings.chatTemperature, max_tokens: 2048 },
         )
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e)
+      } catch {
         const soFar =
           useSessionStore.getState().chat.find((m) => m.id === assistant.id)
             ?.content ?? ''
         updateChatContent(
           assistant.id,
-          soFar ? `${soFar}\n\nError: ${msg}` : `Error: ${msg}`,
+          soFar ? `${soFar}\n\n${chatUnavailable}` : chatUnavailable,
         )
-        setError(msg)
       } finally {
         setBusy(false)
       }
     },
-    [pushChat, setBusy, setError, settings, updateChatContent],
+    [pushChat, setBusy, settings, updateChatContent],
   )
 
   return { openSuggestion, sendUserMessage }

@@ -90,100 +90,107 @@ function extractJsonObjectString(raw: string): string {
   return s
 }
 
+/** Parse model JSON; never throws — returns 0–3 valid items (invalid entries skipped). */
 function parseSuggestionsPayload(raw: string): Omit<LiveSuggestion, 'id'>[] {
-  const parsed = JSON.parse(extractJsonObjectString(raw)) as {
-    suggestions?: unknown
+  try {
+    const parsed = JSON.parse(extractJsonObjectString(raw)) as {
+      suggestions?: unknown
+    }
+    const list = parsed.suggestions
+    if (!Array.isArray(list) || list.length === 0) return []
+
+    const out: Omit<LiveSuggestion, 'id'>[] = []
+    for (const item of list) {
+      if (out.length >= 3) break
+      const o = item as Record<string, unknown>
+      const kind = o.kind
+      const title = o.title
+      const preview = o.preview
+      if (
+        typeof kind !== 'string' ||
+        typeof title !== 'string' ||
+        typeof preview !== 'string'
+      ) {
+        continue
+      }
+      if (!KINDS.has(kind as LiveSuggestion['kind'])) continue
+      out.push({
+        kind: kind as LiveSuggestion['kind'],
+        title,
+        preview,
+      })
+    }
+    return out
+  } catch {
+    return []
   }
-  const list = parsed.suggestions
-  if (!Array.isArray(list) || list.length !== 3) {
-    throw new Error('Model must return JSON with exactly 3 suggestions.')
-  }
-  return list.map((item, i) => {
-    const o = item as Record<string, unknown>
-    const kind = o.kind
-    const title = o.title
-    const preview = o.preview
-    if (
-      typeof kind !== 'string' ||
-      typeof title !== 'string' ||
-      typeof preview !== 'string'
-    ) {
-      throw new Error(`Invalid suggestion shape at index ${i}.`)
-    }
-    if (!KINDS.has(kind as LiveSuggestion['kind'])) {
-      throw new Error(`Invalid suggestion kind at index ${i}: ${kind}`)
-    }
-    return {
-      kind: kind as LiveSuggestion['kind'],
-      title,
-      preview,
-    }
-  })
 }
 
+/** Fetches live suggestions; on any failure returns [] (no UI errors from this path). */
 export async function fetchLiveSuggestions(
   settings: AppSettings,
   transcriptWindow: string,
   priorSuggestionsJson: string,
 ): Promise<LiveSuggestion[]> {
   const apiKey = settings.groqApiKey.trim()
-  if (!apiKey) throw new Error('Add your Groq API key in Settings.')
+  if (!apiKey) return []
 
-  const priorTrimmed = (priorSuggestionsJson ?? '').trim()
-  const priorEmpty = priorTrimmed.length === 0 || priorTrimmed === '[]'
+  try {
+    const priorTrimmed = (priorSuggestionsJson ?? '').trim()
+    const priorEmpty = priorTrimmed.length === 0 || priorTrimmed === '[]'
 
-  const userParts = [
-    'RECENT TRANSCRIPT (lines may be timestamped [HH:MM:SS]):',
-    transcriptWindow || '(empty so far)',
-    '',
-  ]
-  if (priorEmpty) {
-    userParts.push(
-      'No prior suggestion batch for this request. Produce exactly 3 distinct suggestions grounded only in the transcript above.',
+    const userParts = [
+      'RECENT TRANSCRIPT (lines may be timestamped [HH:MM:SS]):',
+      transcriptWindow || '(empty so far)',
       '',
-    )
-  } else {
+    ]
+    if (priorEmpty) {
+      userParts.push(
+        'No prior suggestion batch for this request. Produce exactly 3 distinct suggestions grounded only in the transcript above.',
+        '',
+      )
+    } else {
+      userParts.push(
+        'PRIOR_SUGGESTIONS_JSON (avoid repeating these angles):',
+        priorTrimmed,
+        '',
+      )
+    }
     userParts.push(
-      'PRIOR_SUGGESTIONS_JSON (avoid repeating these angles):',
-      priorTrimmed,
-      '',
+      'Return JSON only: {"suggestions":[{"kind":"question|talking_point|answer|fact_check|clarify","title":"...","preview":"..."}, ...]} — exactly 3 items.',
     )
+    const userContent = userParts.join('\n')
+
+    const res = await fetch(`${GROQ_BASE}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        ...authHeaders(apiKey),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: settings.llmModel,
+        temperature: settings.suggestionTemperature,
+        max_tokens: 1024,
+        messages: [
+          { role: 'system', content: settings.liveSuggestionPrompt },
+          { role: 'user', content: userContent },
+        ],
+        response_format: { type: 'json_object' },
+      }),
+    })
+
+    if (!res.ok) return []
+
+    const data = (await res.json()) as {
+      choices?: { message?: { content?: string } }[]
+    }
+    const raw = data.choices?.[0]?.message?.content
+    if (!raw || typeof raw !== 'string') return []
+
+    return withIds(parseSuggestionsPayload(raw))
+  } catch {
+    return []
   }
-  userParts.push(
-    'Return JSON only: {"suggestions":[{"kind":"question|talking_point|answer|fact_check|clarify","title":"...","preview":"..."}, ...]} — exactly 3 items.',
-  )
-  const userContent = userParts.join('\n')
-
-  const res = await fetch(`${GROQ_BASE}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      ...authHeaders(apiKey),
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: settings.llmModel,
-      temperature: settings.suggestionTemperature,
-      max_tokens: 1024,
-      messages: [
-        { role: 'system', content: settings.liveSuggestionPrompt },
-        { role: 'user', content: userContent },
-      ],
-      response_format: { type: 'json_object' },
-    }),
-  })
-
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Suggestions: ${formatGroqError(res.status, err)}`)
-  }
-
-  const data = (await res.json()) as {
-    choices?: { message?: { content?: string } }[]
-  }
-  const raw = data.choices?.[0]?.message?.content
-  if (!raw) throw new Error('No suggestion content from model.')
-
-  return withIds(parseSuggestionsPayload(raw))
 }
 
 type ChatMessage = {

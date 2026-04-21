@@ -46,7 +46,7 @@ All Groq calls are made **from the browser** to `api.groq.com` (no custom backen
 | **Chat** | Tap a card for a detailed reply, or freeform questions; streaming assistant text |
 | **Settings** | API key, models, chunk length, context character budgets, temperatures, editable system prompts |
 | **Session** | Export transcript, suggestion batches, and chat as JSON |
-| **UI** | Dark/light theme, clear status and error messaging |
+| **UI** | Dark/light theme, status line; failures stay off a global error banner |
 
 ---
 
