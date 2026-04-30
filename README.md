@@ -2,6 +2,10 @@
 
 **TwinMind** is a single-page meeting copilot: it listens through your microphone, transcribes speech with **Groq Whisper**, surfaces **three live suggestions** after each chunk, and offers a **streaming chat** for deeper answers—without leaving the browser.
 
+### Functional requirements
+
+- **Transcript cadence** — While recording, the transcript **appends in chunks** on a fixed timer (default **30 seconds** per chunk, configurable as **Chunk interval** in Settings). Each chunk is one complete audio segment transcribed by Whisper, then a new timestamped line is added.
+
 ---
 
 ## Table of contents
@@ -28,8 +32,8 @@ In a live conversation you want **short, actionable nudges** (questions, talking
 
 1. **Microphone** — You start the mic. Audio is recorded in **segments** (default **30 seconds**). Each segment is a **complete** media file (stop/restart recorder), which keeps Whisper happy across browsers (especially vs. fragile timeslice chunks).
 2. **Transcription** — Each finished segment is sent to **Groq** `whisper-large-v3`. New text is appended to the rolling **transcript** (timestamped lines).
-3. **Live suggestions** — The app sends a **recent tail** of the transcript (plus hints about prior suggestion cards) to **Groq** `openai/gpt-oss-120b` with **JSON output**. You always get **exactly three** new cards, prepended as a batch.
-4. **Manual refresh** — **Refresh** requests another batch from the **latest transcript** (mic can be off). The button shows **Loading…** while the request runs.
+3. **Live suggestions** — After each chunk, the app sends the **latest transcript segment** (plus hints about prior suggestion cards) to **Groq** `openai/gpt-oss-120b` with **JSON output**. You always get **exactly three** new cards, prepended as a batch.
+4. **Manual refresh** — **Refresh** can sync pending audio first when the mic is on, then requests another batch from the latest segment. The button shows **Loading…** while the request runs.
 5. **Chat** — Opening a suggestion or sending a message runs a **streaming** completion so the first tokens appear quickly. Expanded answers can use a **larger transcript window** (head + tail if the session is very long).
 
 All Groq calls are made **from the browser** to `api.groq.com` (no custom backend in this repo).
@@ -40,7 +44,7 @@ All Groq calls are made **from the browser** to `api.groq.com` (no custom backen
 
 | Area | What you get |
 |------|----------------|
-| **Transcript** | Start/stop mic, auto-scrolling lines with timestamps |
+| **Transcript** | Start/stop mic; new lines append each chunk while recording (default ~30s); timestamps |
 | **Suggestions** | Batches of 3 cards; newest batch on top; kinds include question, talking point, answer, fact check, clarify |
 | **Refresh** | New batch from current transcript + Groq key (shows loading state) |
 | **Chat** | Tap a card for a detailed reply, or freeform questions; streaming assistant text |
@@ -65,7 +69,7 @@ Open the URL Vite prints (usually **http://localhost:5173**).
 
 1. Open **Settings** (header) and paste your **Groq API key**.
 2. Click **Start mic** and speak; after each ~30s segment you should see new transcript text and a new suggestion batch.
-3. Use **Refresh** anytime you have transcript lines to pull another batch without waiting for the next segment.
+3. Use **Refresh** for another suggestion batch (with the mic on, pending audio is transcribed first; otherwise you need at least one transcript line).
 4. Use **Chat** for a deeper pass on a suggestion or your own prompt.
 
 **Production build:**

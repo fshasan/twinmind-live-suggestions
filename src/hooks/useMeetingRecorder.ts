@@ -26,9 +26,11 @@ function pickMimeType(): string | undefined {
  * errors. We instead stop the recorder on an interval so each blob is a full
  * container, then immediately start the next segment on the same stream.
  *
- * **Refresh** calls `useSessionStore.getState().runLiveSuggestionRefresh()` so
- * work runs on the store (no stale hook closures). It does not use `enqueue`.
+ * **Refresh** flushes the current audio segment when the mic is on (transcribe
+ * only), then `runLiveSuggestionRefresh()` on the store.
  */
+type SegmentProcessMode = 'transcribe_and_suggest' | 'transcribe_only'
+
 export function useMeetingRecorder() {
   const streamRef = useRef<MediaStream | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
@@ -36,6 +38,8 @@ export function useMeetingRecorder() {
   const continueRecordingRef = useRef(false)
   const queueRef = useRef<Promise<void>>(Promise.resolve())
   const startSegmentRef = useRef<() => void>(() => {})
+  /** Timer-driven segments use full pipeline; early flush uses transcribe-only. */
+  const segmentProcessModeRef = useRef<SegmentProcessMode>('transcribe_and_suggest')
 
   const setRecording = useSessionStore((s) => s.setRecording)
   const setBusy = useSessionStore((s) => s.setBusy)
@@ -54,6 +58,7 @@ export function useMeetingRecorder() {
     async (blob: Blob, mimeHint?: string) => {
       if (!blob.size) return
 
+      const mode = segmentProcessModeRef.current
       const settings = useSessionStore.getState().settings
       const appendTranscriptChunk = useSessionStore.getState().appendTranscriptChunk
       const prependSuggestionBatch =
@@ -80,6 +85,10 @@ export function useMeetingRecorder() {
         )
         if (text) appendTranscriptChunk(text)
 
+        if (mode === 'transcribe_only') {
+          return
+        }
+
         setStatus('Updating suggestions…')
 
         const lines = useSessionStore.getState().transcript
@@ -103,6 +112,35 @@ export function useMeetingRecorder() {
     },
     [setBusy, setError, setStatus],
   )
+
+  /**
+   * Finishes the current MediaRecorder segment early so Whisper sees a full
+   * file, transcribes only (no suggestion batch), then restarts the segment if
+   * the mic is still on. Drains the processing queue before/after so callers
+   * can await a consistent transcript.
+   */
+  const flushCurrentSegmentTranscribeOnly = useCallback(async () => {
+    await queueRef.current
+
+    const rec = recorderRef.current
+    if (!rec || !continueRecordingRef.current || rec.state === 'inactive') {
+      return
+    }
+
+    segmentProcessModeRef.current = 'transcribe_only'
+    if (segmentTimerRef.current !== undefined) {
+      window.clearTimeout(segmentTimerRef.current)
+      segmentTimerRef.current = undefined
+    }
+    try {
+      rec.stop()
+    } catch {
+      /* ignore */
+    }
+
+    await queueRef.current
+    segmentProcessModeRef.current = 'transcribe_and_suggest'
+  }, [])
 
   const startSegment = useCallback(() => {
     const stream = streamRef.current
@@ -134,6 +172,7 @@ export function useMeetingRecorder() {
     }
 
     recorderRef.current = rec
+    segmentProcessModeRef.current = 'transcribe_and_suggest'
 
     rec.ondataavailable = (ev: BlobEvent) => {
       const blob = ev.data
@@ -222,7 +261,7 @@ export function useMeetingRecorder() {
       s.setError('Add your Groq API key in Settings.')
       return
     }
-    if (s.transcript.length === 0) {
+    if (s.transcript.length === 0 && !s.isRecording) {
       s.setError(
         'Nothing in the transcript yet. Start the mic and speak, then try refresh again.',
       )
@@ -230,19 +269,33 @@ export function useMeetingRecorder() {
     }
 
     s.setError(null)
-    s.setStatus('Updating suggestions…')
 
-    void s
-      .runLiveSuggestionRefresh()
-      .catch((e) => {
+    void (async () => {
+      useSessionStore.setState({ liveSuggestionsRefreshPending: true })
+      try {
+        if (useSessionStore.getState().isRecording) {
+          useSessionStore.getState().setStatus('Syncing transcript…')
+          await flushCurrentSegmentTranscribeOnly()
+        }
+        const after = useSessionStore.getState()
+        if (after.transcript.length === 0) {
+          after.setError(
+            'Nothing in the transcript yet. Speak while recording (or wait for a chunk), then try refresh again.',
+          )
+          return
+        }
+        after.setStatus('Updating suggestions…')
+        await after.runLiveSuggestionRefresh()
+      } catch (e) {
         useSessionStore.getState().setError(
           e instanceof Error ? e.message : String(e),
         )
-      })
-      .finally(() => {
+      } finally {
         useSessionStore.getState().setStatus(null)
-      })
-  }, [])
+        useSessionStore.setState({ liveSuggestionsRefreshPending: false })
+      }
+    })()
+  }, [flushCurrentSegmentTranscribeOnly])
 
   useEffect(() => {
     return () => {

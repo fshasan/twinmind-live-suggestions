@@ -28,7 +28,8 @@ export default function App() {
   const setError = useSessionStore((s) => s.setError)
 
   const canRefreshSuggestions =
-    transcript.length > 0 && settings.groqApiKey.trim().length > 0
+    settings.groqApiKey.trim().length > 0 &&
+    (transcript.length > 0 || isRecording)
 
   const { startRecording, stopRecording, refreshNow } = useMeetingRecorder()
   const { openSuggestion, sendUserMessage } = useChatActions()
@@ -70,7 +71,10 @@ export default function App() {
               <p className="mt-0.5 text-xs text-[var(--color-muted)]">{statusLine}</p>
             ) : (
               <p className="mt-0.5 text-xs text-[var(--color-muted)]">
-                Transcript and suggestions refresh about every 30s while recording.
+                While recording, transcript lines append about every{' '}
+                {Math.round(settings.chunkIntervalMs / 1000)}s per chunk. Use
+                Refresh while recording to sync pending audio before new
+                suggestions.
               </p>
             )}
           </div>
@@ -170,6 +174,7 @@ export default function App() {
         <TranscriptColumn
           lines={transcript}
           isRecording={isRecording}
+          chunkIntervalSeconds={Math.round(settings.chunkIntervalMs / 1000)}
           onToggleMic={toggleMic}
         />
         <SuggestionsColumn

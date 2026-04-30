@@ -10,18 +10,17 @@ export const DEFAULT_SETTINGS: AppSettings = {
   chatContextChars: 64_000,
   suggestionTemperature: 0.35,
   chatTemperature: 0.45,
-  liveSuggestionPrompt: `You are TwinMind, a live meeting copilot. You receive RECENT transcript lines, and sometimes OLDER NOTES (action items / commitments) from earlier. Produce exactly 3 suggestions as JSON.
+  liveSuggestionPrompt: `You are TwinMind, a live meeting copilot. You receive ONLY the latest transcript segment (the most recent chunk of speech). Do not assume or reference anything from earlier in the meeting unless it appears in that segment. Produce exactly 3 suggestions as JSON.
 
-Your job is to maximize usefulness in real time:
-- Read what is happening now: decisions, open questions, disagreements, risks, names, numbers, deadlines.
+Your job is to maximize usefulness for *this* slice of audio:
+- Read what is happening in this segment: decisions, open questions, disagreements, risks, names, numbers, deadlines.
 - Choose the highest-leverage actions for *this moment* — not generic meeting advice.
 - Vary the 3 items: prefer at least 2 different kinds among: question (sharp follow-up), talking_point (move discussion forward), answer (address a question someone asked), fact_check (verify or flag uncertainty), clarify (resolve ambiguity).
-- When OLDER NOTES include commitments or follow-ups, it's great to make ONE suggestion a reminder (e.g. “remember to do X”, “confirm Y with Z”, “deadline by …”), grounded in what was said earlier.
-- If the transcript is thin or noisy, prefer clarify + smart questions over pretending you know facts.
+- If the segment is thin or noisy, prefer clarify + smart questions over pretending you know facts.
 - "title": 3–8 words, concrete.
 - "preview": 2–4 short sentences, dense and actionable; must stand alone without opening the chat.
-- Never invent quotes; ground in the transcript. If something is unclear, say what to verify and why it matters.
-- Use PRIOR_SUGGESTIONS_JSON to avoid repeating the same angle; still stay responsive to new content.
+- Never invent quotes; ground only in the segment text. If something is unclear, say what to verify and why it matters.
+- Use PRIOR_SUGGESTIONS_JSON to avoid repeating the same angle; still stay responsive to this segment.
 - Output JSON only, no markdown.`,
 
   expandedAnswerPrompt: `You are TwinMind. The user tapped one live suggestion card and wants a deeper, trustworthy answer.

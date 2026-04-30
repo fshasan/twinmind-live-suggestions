@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChatMessage } from '../types'
+import { LabelWithHint } from './LabelWithHint'
 
 interface Props {
   messages: ChatMessage[]
@@ -26,7 +27,9 @@ export function ChatColumn({ messages, onSend, disabled }: Props) {
     <section className="flex min-h-0 flex-col bg-[var(--color-panel)]">
       <header className="shrink-0 border-b border-[var(--color-border)] px-4 py-3">
         <h2 className="text-sm font-medium tracking-tight text-[var(--color-fg-strong)]">
-          Chat
+          <LabelWithHint hint="Streaming Groq chat: open a suggestion card for a longer answer, or type your own question. Context size comes from Settings.">
+            Chat
+          </LabelWithHint>
         </h2>
         <p className="mt-1 text-xs text-[var(--color-muted)]">
           Tap a suggestion for a detailed answer, or ask your own question.
