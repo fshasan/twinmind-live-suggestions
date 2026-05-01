@@ -1,4 +1,5 @@
 import type { LiveSuggestion, SuggestionBatch } from '../types'
+import { LabelWithHint } from './LabelWithHint'
 
 const KIND_LABEL: Record<LiveSuggestion['kind'], string> = {
   question: 'Question',
@@ -29,7 +30,9 @@ export function SuggestionsColumn({
     <section className="flex min-h-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]">
       <header className="flex shrink-0 items-center justify-between gap-2 border-b border-[var(--color-border)] px-4 py-3">
         <h2 className="text-sm font-medium tracking-tight text-[var(--color-fg-strong)]">
-          Live suggestions
+          <LabelWithHint hint="Batches of three cards from the LLM, based on the latest transcript segment. New cards after each chunk; Refresh adds another batch (syncs pending audio first if the mic is on).">
+            Live suggestions
+          </LabelWithHint>
         </h2>
         <button
           type="button"
@@ -38,8 +41,8 @@ export function SuggestionsColumn({
             isRefreshLoading
               ? 'Fetching new suggestions…'
               : canRefresh
-                ? 'Add 3 new suggestions from the latest transcript (top of the list)'
-                : 'Add a Groq API key in Settings and wait for at least one transcript line'
+                ? 'Syncs the latest audio to the transcript when the mic is on, then adds 3 new suggestion cards'
+                : 'Add a Groq API key in Settings and start the mic (or wait for transcript lines)'
           }
           onClick={onRefresh}
           className="rounded-full bg-[var(--color-panel)] px-3 py-1.5 text-xs font-medium text-[var(--color-fg)] ring-1 ring-[var(--color-border)] transition hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/5"
@@ -50,8 +53,9 @@ export function SuggestionsColumn({
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         {batches.length === 0 ? (
           <p className="text-left text-sm text-[var(--color-muted)]">
-            Suggestions appear after each transcript update (about every 30
-            seconds while recording) or when you tap Refresh.
+            Suggestions appear after each recording chunk while the mic is on,
+            or when you tap Refresh (which updates the transcript first if you
+            are still recording).
           </p>
         ) : (
           <ul className="flex flex-col gap-6">

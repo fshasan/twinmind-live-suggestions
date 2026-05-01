@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { AppSettings } from '../types'
+import { LabelWithHint } from './LabelWithHint'
 
 const fieldClass =
   'rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-[var(--color-fg)] placeholder:text-[var(--color-muted)] focus:border-purple-500/60 focus:outline-none focus:ring-1 focus:ring-purple-500/40'
@@ -34,7 +35,12 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
               id="settings-title"
               className="text-lg font-semibold text-[var(--color-fg-strong)]"
             >
-              Settings
+              <LabelWithHint
+                className="text-lg font-semibold"
+                hint="API key, models, chunk timing, temperatures, context limits, and system prompts. Saved in localStorage for this origin only."
+              >
+                Settings
+              </LabelWithHint>
             </h2>
             <p className="mt-1 text-sm text-[var(--color-muted)]">
               Your Groq API key stays in this browser (localStorage). Nothing is
@@ -52,7 +58,12 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
 
         <div className="flex flex-col gap-4 text-left text-sm">
           <label className="flex flex-col gap-1">
-            <span className={labelClass}>Groq API key</span>
+            <LabelWithHint
+              className={labelClass}
+              hint="Your Groq API secret. Saved only in this browser (localStorage). Calls go from your machine to api.groq.com—nothing is sent to TwinMind servers."
+            >
+              Groq API key
+            </LabelWithHint>
             <input
               type="password"
               autoComplete="off"
@@ -63,9 +74,14 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
             />
           </label>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid items-end gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1">
-              <span className={labelClass}>Whisper model</span>
+              <LabelWithHint
+                className={labelClass}
+                hint="Groq speech-to-text model id (e.g. whisper-large-v3). Used when each audio chunk is transcribed."
+              >
+                Whisper model
+              </LabelWithHint>
               <input
                 value={draft.whisperModel}
                 onChange={(e) => update('whisperModel', e.target.value)}
@@ -73,7 +89,12 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className={labelClass}>LLM model</span>
+              <LabelWithHint
+                className={labelClass}
+                hint="Groq chat-completions model for live suggestions (JSON) and for streaming chat or expanded card answers."
+              >
+                LLM model
+              </LabelWithHint>
               <input
                 value={draft.llmModel}
                 onChange={(e) => update('llmModel', e.target.value)}
@@ -82,9 +103,14 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
             </label>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid items-end gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1">
-              <span className={labelClass}>Chunk interval (ms)</span>
+              <LabelWithHint
+                className={labelClass}
+                hint="While the mic is on, recording runs in segments of this length (ms). When a segment ends, audio is sent to Whisper and one transcript line is appended (minimum 5000)."
+              >
+                Chunk interval (ms)
+              </LabelWithHint>
               <input
                 type="number"
                 min={5000}
@@ -97,7 +123,12 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className={labelClass}>Suggestion temperature</span>
+              <LabelWithHint
+                className={labelClass}
+                hint="Sampling temperature for the 3 live suggestion cards. Lower is more focused; higher is more varied (typical range 0.2–0.8)."
+              >
+                Suggestion temperature
+              </LabelWithHint>
               <input
                 type="number"
                 min={0}
@@ -112,9 +143,14 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
             </label>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid items-end gap-3 sm:grid-cols-3">
             <label className="flex flex-col gap-1">
-              <span className={labelClass}>Suggest context (chars)</span>
+              <LabelWithHint
+                className={labelClass}
+                hint="Upper bound on characters of the latest transcript segment sent to the model when generating suggestion cards."
+              >
+                Suggest context (chars)
+              </LabelWithHint>
               <input
                 type="number"
                 min={1000}
@@ -127,11 +163,12 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className={labelClass}>Expanded context (chars)</span>
-              <span className="text-xs text-[var(--color-muted)]">
-                Full-session transcript for card details; very long meetings may
-                truncate middle.
-              </span>
+              <LabelWithHint
+                className={labelClass}
+                hint="How much of the full session transcript can be included when you open a suggestion for a longer answer. Very long sessions may truncate the middle."
+              >
+                Expanded context (chars)
+              </LabelWithHint>
               <input
                 type="number"
                 min={1000}
@@ -144,7 +181,12 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className={labelClass}>Chat context (chars)</span>
+              <LabelWithHint
+                className={labelClass}
+                hint="How much transcript history is folded into the right-hand chat when you send messages or continue a thread."
+              >
+                Chat context (chars)
+              </LabelWithHint>
               <input
                 type="number"
                 min={1000}
@@ -159,7 +201,12 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
           </div>
 
           <label className="flex flex-col gap-1">
-            <span className={labelClass}>Live suggestion system prompt</span>
+            <LabelWithHint
+              className={labelClass}
+              hint="Instructions for the assistant when it returns exactly three JSON suggestion cards after each transcript chunk or manual refresh."
+            >
+              Live suggestion system prompt
+            </LabelWithHint>
             <textarea
               value={draft.liveSuggestionPrompt}
               onChange={(e) => update('liveSuggestionPrompt', e.target.value)}
@@ -169,7 +216,12 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className={labelClass}>Expanded answer system prompt</span>
+            <LabelWithHint
+              className={labelClass}
+              hint="Instructions when you tap a suggestion card and TwinMind streams a deeper answer using expanded transcript context."
+            >
+              Expanded answer system prompt
+            </LabelWithHint>
             <textarea
               value={draft.expandedAnswerPrompt}
               onChange={(e) => update('expandedAnswerPrompt', e.target.value)}
@@ -179,7 +231,12 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className={labelClass}>Chat system prompt</span>
+            <LabelWithHint
+              className={labelClass}
+              hint="Instructions for the streaming chat column: tone, safety, and how to use transcript context in replies."
+            >
+              Chat system prompt
+            </LabelWithHint>
             <textarea
               value={draft.chatPrompt}
               onChange={(e) => update('chatPrompt', e.target.value)}
@@ -189,7 +246,12 @@ export function SettingsModal({ settings, onClose, onSave }: Props) {
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className={labelClass}>Chat temperature</span>
+            <LabelWithHint
+              className={labelClass}
+              hint="Sampling temperature for freeform chat and streamed expanded answers (separate from suggestion temperature)."
+            >
+              Chat temperature
+            </LabelWithHint>
             <input
               type="number"
               min={0}

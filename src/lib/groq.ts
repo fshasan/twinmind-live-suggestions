@@ -134,7 +134,7 @@ export async function fetchLiveSuggestions(
   const priorEmpty = priorTrimmed.length === 0 || priorTrimmed === '[]'
 
   const userParts = [
-    'RECENT TRANSCRIPT (lines may be timestamped [HH:MM:SS]):',
+    'LATEST TRANSCRIPT SEGMENT ONLY (timestamped [HH:MM:SS]; ignore prior discussion not shown here):',
     transcriptWindow || '(empty so far)',
     '',
   ]
