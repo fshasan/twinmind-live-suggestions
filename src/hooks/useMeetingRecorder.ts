@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchLiveSuggestions, transcribeAudio } from '../lib/groq'
 import {
   priorSuggestionsHint,
@@ -26,8 +26,9 @@ function pickMimeType(): string | undefined {
  * errors. We instead stop the recorder on an interval so each blob is a full
  * container, then immediately start the next segment on the same stream.
  *
- * **Refresh** flushes the current audio segment when the mic is on (transcribe
- * only), then `runLiveSuggestionRefresh()` on the store.
+ * **Transcript Refresh** flushes buffered audio when the mic is on (transcribe
+ * only). **Suggestions Refresh** does the same flush first, then
+ * `runLiveSuggestionRefresh()` on the store.
  */
 type SegmentProcessMode = 'transcribe_and_suggest' | 'transcribe_only'
 
@@ -45,6 +46,7 @@ export function useMeetingRecorder() {
   const setBusy = useSessionStore((s) => s.setBusy)
   const setStatus = useSessionStore((s) => s.setStatus)
   const setError = useSessionStore((s) => s.setError)
+  const [transcriptRefreshPending, setTranscriptRefreshPending] = useState(false)
 
   const enqueue = useCallback((fn: () => Promise<void>) => {
     queueRef.current = queueRef.current.then(fn).catch((e) => {
@@ -297,6 +299,57 @@ export function useMeetingRecorder() {
     })()
   }, [flushCurrentSegmentTranscribeOnly])
 
+  /** Transcript column: transcribe whatever audio is in the current segment buffer (no new suggestion cards). */
+  const refreshTranscriptNow = useCallback(() => {
+    const s = useSessionStore.getState()
+    if (!s.settings.groqApiKey.trim()) {
+      s.setError('Add your Groq API key in Settings.')
+      return
+    }
+    if (!s.isRecording) {
+      s.setError(
+        'Start the microphone first. Refresh transcribes audio buffered while recording.',
+      )
+      return
+    }
+
+    s.setError(null)
+    setTranscriptRefreshPending(true)
+    void (async () => {
+      const lineCountBefore = useSessionStore.getState().transcript.length
+      let leaveStatusMessage = false
+      try {
+        useSessionStore.getState().setStatus('Syncing transcript…')
+        await flushCurrentSegmentTranscribeOnly()
+        const st = useSessionStore.getState()
+        if (st.isRecording && st.transcript.length === lineCountBefore) {
+          leaveStatusMessage = true
+          st.setStatus(
+            'Refresh finished—no new line (silence or very little speech in that slice).',
+          )
+        }
+      } catch (e) {
+        useSessionStore.getState().setError(
+          e instanceof Error ? e.message : String(e),
+        )
+      } finally {
+        if (!leaveStatusMessage) {
+          useSessionStore.getState().setStatus(null)
+        }
+        setTranscriptRefreshPending(false)
+      }
+      if (leaveStatusMessage) {
+        const msg =
+          'Refresh finished—no new line (silence or very little speech in that slice).'
+        window.setTimeout(() => {
+          useSessionStore.setState((state) =>
+            state.statusLine === msg ? { statusLine: null } : {},
+          )
+        }, 5000)
+      }
+    })()
+  }, [flushCurrentSegmentTranscribeOnly])
+
   useEffect(() => {
     return () => {
       continueRecordingRef.current = false
@@ -319,5 +372,7 @@ export function useMeetingRecorder() {
     startRecording,
     stopRecording,
     refreshNow,
+    refreshTranscriptNow,
+    transcriptRefreshPending,
   }
 }
