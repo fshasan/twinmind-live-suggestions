@@ -8,6 +8,9 @@ interface Props {
   /** Recording chunk length from Settings (seconds); drives how often lines append. */
   chunkIntervalSeconds: number
   onToggleMic: () => void
+  hasGroqApiKey: boolean
+  isTranscriptRefreshLoading: boolean
+  onRefreshTranscript: () => void
 }
 
 export function TranscriptColumn({
@@ -15,6 +18,9 @@ export function TranscriptColumn({
   isRecording,
   chunkIntervalSeconds,
   onToggleMic,
+  hasGroqApiKey,
+  isTranscriptRefreshLoading,
+  onRefreshTranscript,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -26,11 +32,28 @@ export function TranscriptColumn({
     <section className="flex min-h-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-panel)]">
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border)] px-4 py-3">
         <h2 className="text-sm font-medium tracking-tight text-[var(--color-fg-strong)]">
-          <LabelWithHint hint="Lines from Groq Whisper, appended after each recording chunk while the mic is on (interval in Settings).">
+          <LabelWithHint hint="Lines from Groq Whisper, appended after each recording chunk while the mic is on (interval in Settings). Refresh sends whatever audio is currently buffered to Whisper right away, like “update now.”">
             Transcript
           </LabelWithHint>
         </h2>
         <div className="flex flex-wrap items-center justify-end gap-2">
+          <button
+            type="button"
+            disabled={!hasGroqApiKey || isTranscriptRefreshLoading}
+            title={
+              isTranscriptRefreshLoading
+                ? 'Transcribing buffered audio…'
+                : !hasGroqApiKey
+                  ? 'Add a Groq API key in Settings first'
+                  : !isRecording
+                    ? 'Turn the mic on—Refresh only transcribes audio still being captured (not lines already saved)'
+                    : 'Transcribe audio buffered so far (without waiting for the chunk timer)'
+            }
+            onClick={onRefreshTranscript}
+            className="rounded-full bg-[var(--color-panel)] px-3 py-1.5 text-xs font-medium text-[var(--color-fg)] ring-1 ring-[var(--color-border)] transition hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/5"
+          >
+            {isTranscriptRefreshLoading ? 'Loading…' : 'Refresh'}
+          </button>
           <button
             type="button"
             onClick={onToggleMic}
@@ -49,7 +72,8 @@ export function TranscriptColumn({
           <p className="text-[var(--color-muted)]">
             Start the microphone. While recording, a new transcript line is
             appended about every {chunkIntervalSeconds}s when each audio chunk
-            finishes (change the interval in Settings).
+            finishes (change the interval in Settings). Use Refresh while
+            recording to transcribe buffered audio immediately.
           </p>
         ) : (
           <ul className="space-y-3">

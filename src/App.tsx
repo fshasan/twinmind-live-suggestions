@@ -31,7 +31,15 @@ export default function App() {
     settings.groqApiKey.trim().length > 0 &&
     (transcript.length > 0 || isRecording)
 
-  const { startRecording, stopRecording, refreshNow } = useMeetingRecorder()
+  const hasGroqApiKey = settings.groqApiKey.trim().length > 0
+
+  const {
+    startRecording,
+    stopRecording,
+    refreshNow,
+    refreshTranscriptNow,
+    transcriptRefreshPending,
+  } = useMeetingRecorder()
   const { openSuggestion, sendUserMessage } = useChatActions()
   const ensureSessionStart = useSessionStore((s) => s.ensureSessionStart)
 
@@ -72,9 +80,9 @@ export default function App() {
             ) : (
               <p className="mt-0.5 text-xs text-[var(--color-muted)]">
                 While recording, transcript lines append about every{' '}
-                {Math.round(settings.chunkIntervalMs / 1000)}s per chunk. Use
-                Refresh while recording to sync pending audio before new
-                suggestions.
+                {Math.round(settings.chunkIntervalMs / 1000)}s per chunk. Transcript
+                Refresh and Live suggestions → Refresh both sync pending audio
+                first; transcript Refresh only updates the text.
               </p>
             )}
           </div>
@@ -176,6 +184,9 @@ export default function App() {
           isRecording={isRecording}
           chunkIntervalSeconds={Math.round(settings.chunkIntervalMs / 1000)}
           onToggleMic={toggleMic}
+          hasGroqApiKey={hasGroqApiKey}
+          isTranscriptRefreshLoading={transcriptRefreshPending}
+          onRefreshTranscript={() => void refreshTranscriptNow()}
         />
         <SuggestionsColumn
           batches={suggestionBatches}
